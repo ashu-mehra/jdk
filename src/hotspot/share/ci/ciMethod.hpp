@@ -42,6 +42,7 @@ class Arena;
 class BCEscapeAnalyzer;
 class InlineTree;
 class xmlStream;
+class BCReachabilityAnalyzer;
 
 // Whether profiling found an oop to be always, never or sometimes
 // null
@@ -105,6 +106,8 @@ class ciMethod : public ciMetadata {
   ciTypeFlow*         _flow;
   BCEscapeAnalyzer*   _bcea;
 #endif
+  // Static analzyer
+  BCReachabilityAnalyzer* _bcra;
 
   ciMethod(const methodHandle& h_m, ciInstanceKlass* holder);
   ciMethod(ciInstanceKlass* holder, ciSymbol* name, ciSymbol* signature, ciInstanceKlass* accessor);
@@ -225,6 +228,9 @@ class ciMethod : public ciMetadata {
   }
   BCEscapeAnalyzer  *get_bcea();
   ciMethodBlocks    *get_method_blocks();
+  
+  // Static analzyer
+  BCReachabilityAnalyzer *get_bcra();
 
   bool    has_linenumber_table() const;          // length unknown until decompression
 
