@@ -54,6 +54,9 @@
 #include "ci/ciTypeFlow.hpp"
 #include "oops/method.hpp"
 #endif
+// Static Analyzer
+#include "ci/bcReachabilityAnalyzer.hpp"
+
 
 // ciMethod
 //
@@ -100,6 +103,8 @@ ciMethod::ciMethod(const methodHandle& h_m, ciInstanceKlass* holder) :
   _flow               = NULL;
   _bcea               = NULL;
 #endif // COMPILER2
+  // Static analzyer
+  _bcra               = NULL;
 
   ciEnv *env = CURRENT_ENV;
   if (env->jvmti_can_hotswap_or_post_breakpoint()) {
@@ -181,6 +186,9 @@ ciMethod::ciMethod(ciInstanceKlass* holder,
   _flow(                   NULL),
   _bcea(                   NULL)
 #endif // COMPILER2
+  //Static Analyzer
+  ,
+  _bcra(                    NULL)
 {
   // Usually holder and accessor are the same type but in some cases
   // the holder has the wrong class loader (e.g. invokedynamic call
@@ -1276,6 +1284,19 @@ BCEscapeAnalyzer  *ciMethod::get_bcea() {
   ShouldNotReachHere();
   return NULL;
 #endif // COMPILER2
+}
+
+BCReachabilityAnalyzer  *ciMethod::get_bcra() {
+//Static Analyzer
+  if (_bcra == NULL) {
+    _bcra = new (CURRENT_ENV->arena()) BCReachabilityAnalyzer(this, NULL);
+  }
+  return _bcra;
+// TODO: Introduce a proper define for the static analyzer and use this here
+// #else // Static Analyzer
+//   ShouldNotReachHere();
+//   return NULL;
+// #endif // Static Analyzer
 }
 
 ciMethodBlocks  *ciMethod::get_method_blocks() {
