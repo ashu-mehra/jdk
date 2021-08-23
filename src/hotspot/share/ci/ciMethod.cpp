@@ -1287,15 +1287,16 @@ BCEscapeAnalyzer  *ciMethod::get_bcea() {
 }
 
 BCReachabilityAnalyzer  *ciMethod::get_bcra() {
-#ifdef COMPILER2 //Static Analyzer
+//Static Analyzer
   if (_bcra == NULL) {
     _bcra = new (CURRENT_ENV->arena()) BCReachabilityAnalyzer(this, NULL);
   }
   return _bcra;
-#else // COMPILER2
-  ShouldNotReachHere();
-  return NULL;
-#endif // COMPILER2
+// TODO: Introduce a proper define for the static analyzer and use this here
+// #else // Static Analyzer
+//   ShouldNotReachHere();
+//   return NULL;
+// #endif // Static Analyzer
 }
 
 ciMethodBlocks  *ciMethod::get_method_blocks() {
