@@ -36,6 +36,7 @@ enum CompilerType {
   compiler_c1,
   compiler_c2,
   compiler_jvmci,
+  static_analyzer,
   compiler_number_of_types
 };
 
@@ -61,7 +62,8 @@ enum CompLevel {
   CompLevel_simple            = 1,         // C1
   CompLevel_limited_profile   = 2,         // C1, invocation & backedge counters
   CompLevel_full_profile      = 3,         // C1, invocation & backedge counters + mdo
-  CompLevel_full_optimization = 4          // C2 or JVMCI
+  CompLevel_full_optimization = 4,         // C2 or JVMCI
+  CompLevel_static_analysis   = 5          // Static Analyzer
 };
 
 class CompilationModeFlag : AllStatic {
@@ -98,6 +100,10 @@ inline bool is_c2_compile(int comp_level) {
 
 inline bool is_compile(int comp_level) {
   return is_c1_compile(comp_level) || is_c2_compile(comp_level);
+}
+
+inline bool is_static_analysis(int comp_level) {
+  return comp_level == CompLevel_static_analysis;
 }
 
 

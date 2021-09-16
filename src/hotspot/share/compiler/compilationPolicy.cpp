@@ -56,6 +56,7 @@
 jlong CompilationPolicy::_start_time = 0;
 int CompilationPolicy::_c1_count = 0;
 int CompilationPolicy::_c2_count = 0;
+int CompilationPolicy::_sa_count = 0;
 double CompilationPolicy::_increase_threshold_at_ratio = 0;
 
 void compilationPolicy_init() {
@@ -109,6 +110,10 @@ void CompilationPolicy::compile_if_required(const methodHandle& m, TRAPS) {
     }
     CompileBroker::compile_method(m, InvocationEntryBci, level, methodHandle(), 0, CompileTask::Reason_MustBeCompiled, THREAD);
   }
+}
+
+void CompilationPolicy::analyze(const methodHandle& m, TRAPS) {
+  CompileBroker::compile_method(m, InvocationEntryBci, CompLevel_static_analysis, methodHandle(), 0, CompileTask::Reason_MustBeCompiled, THREAD);
 }
 
 static inline CompLevel adjust_level_for_compilability_query(CompLevel comp_level) {
@@ -487,6 +492,7 @@ void CompilationPolicy::initialize() {
       set_c1_count(MAX2(count / 3, 1));
       set_c2_count(MAX2(count - c1_count(), 1));
     }
+    set_sa_count(count);
     assert(count == c1_count() + c2_count(), "inconsistent compiler thread count");
     set_increase_threshold_at_ratio();
   }

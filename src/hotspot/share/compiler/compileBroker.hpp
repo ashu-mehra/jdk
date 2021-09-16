@@ -160,16 +160,20 @@ class CompileBroker: AllStatic {
   static volatile jint _should_compile_new_jobs;
 
   // The installed compiler(s)
-  static AbstractCompiler* _compilers[2];
+  static AbstractCompiler* _compilers[3];
 
   // The maximum numbers of compiler threads to be determined during startup.
   static int _c1_count, _c2_count;
 
+  static int _sa_count;
+
   // An array of compiler thread Java objects
   static jobject *_compiler1_objects, *_compiler2_objects;
+  static jobject *_sa_objects;
 
   // An array of compiler logs
   static CompileLog **_compiler1_logs, **_compiler2_logs;
+  static CompileLog **_sa_logs;
 
   // These counters are used for assigning id's to each compilation
   static volatile jint _compilation_id;
@@ -178,6 +182,7 @@ class CompileBroker: AllStatic {
 
   static CompileQueue* _c2_compile_queue;
   static CompileQueue* _c1_compile_queue;
+  static CompileQueue* _sa_queue;
 
   // performance counters
   static PerfCounter* _perf_total_compilation;
@@ -287,6 +292,7 @@ public:
   static AbstractCompiler* compiler(int comp_level) {
     if (is_c2_compile(comp_level)) return _compilers[1]; // C2
     if (is_c1_compile(comp_level)) return _compilers[0]; // C1
+    if (is_static_analysis(comp_level)) return _compilers[2]; // Static Analyzer
     return NULL;
   }
 

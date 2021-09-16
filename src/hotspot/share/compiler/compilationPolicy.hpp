@@ -166,6 +166,7 @@ class CompilationPolicy : AllStatic {
 
   static jlong _start_time;
   static int _c1_count, _c2_count;
+  static int _sa_count;
   static double _increase_threshold_at_ratio;
 
   // Set carry flags in the counters (in Method* and MDO).
@@ -212,6 +213,7 @@ class CompilationPolicy : AllStatic {
 
   static void set_c1_count(int x) { _c1_count = x;    }
   static void set_c2_count(int x) { _c2_count = x;    }
+  static void set_sa_count(int x) { _sa_count = x;    }
 
   enum EventType { CALL, LOOP, COMPILE, REMOVE_FROM_QUEUE, UPDATE_IN_QUEUE, REPROFILE, MAKE_NOT_ENTRANT };
   static void print_event(EventType type, const Method* m, const Method* im, int bci, CompLevel level);
@@ -239,6 +241,7 @@ class CompilationPolicy : AllStatic {
 public:
   static int c1_count() { return _c1_count; }
   static int c2_count() { return _c2_count; }
+  static int sa_count() { return _sa_count; }
   static int compiler_count(CompLevel comp_level);
 
   // If m must_be_compiled then request a compilation from the CompileBroker.
@@ -250,6 +253,8 @@ public:
   // m is allowed to be osr compiled
   static bool can_be_osr_compiled(const methodHandle& m, int comp_level = CompLevel_any);
   static bool is_compilation_enabled();
+
+  static void analyze(const methodHandle& m, TRAPS);
 
   static void do_safepoint_work() { }
   static CompileTask* select_task_helper(CompileQueue* compile_queue);

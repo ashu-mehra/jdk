@@ -82,6 +82,7 @@
 #ifdef COMPILER2
 #include "opto/c2compiler.hpp"
 #endif
+#include "staticanalyzer/staticAnalyzer.hpp"
 
 #ifdef DTRACE_ENABLED
 
@@ -124,18 +125,21 @@ volatile int  CompileBroker::_print_compilation_warning = 0;
 volatile jint CompileBroker::_should_compile_new_jobs = run_compilation;
 
 // The installed compiler(s)
-AbstractCompiler* CompileBroker::_compilers[2];
+AbstractCompiler* CompileBroker::_compilers[3];
 
 // The maximum numbers of compiler threads to be determined during startup.
 int CompileBroker::_c1_count = 0;
 int CompileBroker::_c2_count = 0;
+int CompileBroker::_sa_count = 0;
 
 // An array of compiler names as Java String objects
 jobject* CompileBroker::_compiler1_objects = NULL;
 jobject* CompileBroker::_compiler2_objects = NULL;
+jobject* CompileBroker::_sa_objects = NULL;
 
 CompileLog** CompileBroker::_compiler1_logs = NULL;
 CompileLog** CompileBroker::_compiler2_logs = NULL;
+CompileLog** CompileBroker::_sa_logs = NULL;
 
 // These counters are used to assign an unique ID to each compilation.
 volatile jint CompileBroker::_compilation_id     = 0;
@@ -192,6 +196,7 @@ CompilerStatistics CompileBroker::_stats_per_level[CompLevel_full_optimization];
 
 CompileQueue* CompileBroker::_c2_compile_queue     = NULL;
 CompileQueue* CompileBroker::_c1_compile_queue     = NULL;
+CompileQueue* CompileBroker::_sa_queue             = NULL;
 
 
 
@@ -309,6 +314,10 @@ bool CompileBroker::can_remove(CompilerThread *ct, bool do_it) {
   if (!ReduceNumberOfCompilerThreads) return false;
 
   AbstractCompiler *compiler = ct->compiler();
+  // do not allow threads for static analysis to be removed
+  if (compiler->is_sa()) {
+    return false;
+  }
   int compiler_count = compiler->num_compiler_threads();
   bool c1 = compiler->is_c1();
 
@@ -547,6 +556,7 @@ void CompileQueue::mark_on_stack() {
 CompileQueue* CompileBroker::compile_queue(int comp_level) {
   if (is_c2_compile(comp_level)) return _c2_compile_queue;
   if (is_c1_compile(comp_level)) return _c1_compile_queue;
+  if (is_static_analysis(comp_level)) return _sa_queue;
   return NULL;
 }
 
@@ -563,6 +573,9 @@ void CompileBroker::print_compile_queues(outputStream* st) {
   }
   if (_c2_compile_queue != NULL) {
     _c2_compile_queue->print(st);
+  }
+  if (_sa_queue != NULL) {
+    _sa_queue->print(st);
   }
 }
 
@@ -636,6 +649,7 @@ void CompileBroker::compilation_init_phase1(JavaThread* THREAD) {
   // Set the interface to the current compiler(s).
   _c1_count = CompilationPolicy::c1_count();
   _c2_count = CompilationPolicy::c2_count();
+  _sa_count = CompilationPolicy::sa_count();
 
 #if INCLUDE_JVMCI
   if (EnableJVMCI) {
@@ -686,6 +700,10 @@ void CompileBroker::compilation_init_phase1(JavaThread* THREAD) {
      JFR_ONLY(register_jfr_phasetype_serializer(compiler_jvmci);)
    }
 #endif // INCLUDE_JVMCI
+
+  if (_sa_count > 0) {
+    _compilers[2] = new StaticAnalyzer();
+  }
 
   // Start the compiler thread(s) and the sweeper thread
   init_compiler_sweeper_threads();
@@ -966,6 +984,11 @@ void CompileBroker::init_compiler_sweeper_threads() {
     _compiler1_objects = NEW_C_HEAP_ARRAY(jobject, _c1_count, mtCompiler);
     _compiler1_logs = NEW_C_HEAP_ARRAY(CompileLog*, _c1_count, mtCompiler);
   }
+  if (_sa_count > 0) {
+      _sa_queue  = new CompileQueue("Static Analysis queue");
+      _sa_objects = NEW_C_HEAP_ARRAY(jobject, _sa_count, mtCompiler);
+      _sa_logs = NEW_C_HEAP_ARRAY(CompileLog*, _sa_count, mtCompiler);
+  }
 
   char name_buffer[256];
 
@@ -1013,6 +1036,26 @@ void CompileBroker::init_compiler_sweeper_threads() {
         assert(tlh.includes(ct), "ct=" INTPTR_FORMAT " exited unexpectedly.", p2i(ct));
         tty->print_cr("Added initial compiler thread %s", ct->name());
       }
+    }
+  }
+
+  for (int i = 0; i < _sa_count; i++) {
+    jobject thread_handle = NULL;
+    // Create a name for our thread.
+    sprintf(name_buffer, "%s Thread%d", _compilers[2]->name(), i);
+    Handle thread_oop = create_thread_oop(name_buffer, CHECK);
+    thread_handle = JNIHandles::make_global(thread_oop);
+    _sa_objects[i] = thread_handle;
+    _sa_logs[i] = NULL;
+
+    JavaThread *ct = make_thread(compiler_t, thread_handle, _sa_queue, _compilers[2], THREAD);
+    assert(ct != NULL, "should have been handled for initial thread");
+    _compilers[2]->set_num_compiler_threads(i + 1);
+    if (TraceCompilerThreads) {
+      ResourceMark rm;
+      ThreadsListHandle tlh;  // name() depends on the TLH.
+      assert(tlh.includes(ct), "ct=" INTPTR_FORMAT " exited unexpectedly.", p2i(ct));
+      tty->print_cr("Added initial static analyzer thread %s", ct->name());
     }
   }
 
@@ -1142,6 +1185,9 @@ void CompileBroker::mark_on_stack() {
   }
   if (_c1_compile_queue != NULL) {
     _c1_compile_queue->mark_on_stack();
+  }
+  if (_sa_queue != NULL) {
+    _sa_queue->mark_on_stack();
   }
 }
 
@@ -1827,6 +1873,10 @@ void CompileBroker::shutdown_compiler_runtime(AbstractCompiler* comp, CompilerTh
 
     if (_c2_compile_queue != NULL) {
       _c2_compile_queue->free_all();
+    }
+
+    if (_sa_queue != NULL) {
+      _sa_queue->free_all();
     }
 
     // Set flags so that we continue execution with using interpreter only.

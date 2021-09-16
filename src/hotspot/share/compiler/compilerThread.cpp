@@ -60,7 +60,7 @@ void CompilerThread::thread_entry(JavaThread* thread, TRAPS) {
 }
 
 bool CompilerThread::can_call_java() const {
-  return _compiler != NULL && _compiler->is_jvmci();
+  return _compiler != NULL && (_compiler->is_jvmci() || _compiler->is_sa());
 }
 
 // Create sweeper thread
