@@ -230,6 +230,7 @@ extern "C" {
   jobject  JNICALL JVM_GetJVMCIRuntime(JNIEnv *env, jclass c);
   void     JNICALL JVM_RegisterJVMCINatives(JNIEnv *env, jclass compilerToVMClass);
 #endif
+  void JNICALL JVM_RegisterStaticAnalyzerNatives(JNIEnv *env, jclass saClass);
 }
 
 #define CC (char*)  /* cast a literal from (const char*) */
@@ -254,6 +255,7 @@ static JNINativeMethod lookup_special_native_methods[] = {
   { CC"Java_jdk_jfr_internal_JVM_registerNatives",                 NULL, FN_PTR(jfr_register_natives)            },
 #endif
   { CC"Java_jdk_internal_misc_ScopedMemoryAccess_registerNatives", NULL, FN_PTR(JVM_RegisterJDKInternalMiscScopedMemoryAccessMethods) },
+  { CC"Java_jdk_internal_staticanalysis_StaticAnalyzer_registerNatives", NULL, FN_PTR(JVM_RegisterStaticAnalyzerNatives) },
 };
 
 static address lookup_special_native(const char* jni_name) {

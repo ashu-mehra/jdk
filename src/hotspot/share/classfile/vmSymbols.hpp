@@ -29,6 +29,7 @@
 #include "jvmci/vmSymbols_jvmci.hpp"
 #include "memory/iterator.hpp"
 #include "oops/symbol.hpp"
+#include "staticanalyzer/vmSymbols_sa.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/enumIterator.hpp"
 
@@ -709,6 +710,8 @@
   template(toFileURL_name,                                  "toFileURL")                                          \
   template(toFileURL_signature,                             "(Ljava/lang/String;)Ljava/net/URL;")                 \
   template(url_void_signature,                              "(Ljava/net/URL;)V")                                  \
+                                                                                                                  \
+  JVMSA_VM_SYMBOLS_DO(template)                                                                                   \
                                                                                                                   \
   /*end*/
 
