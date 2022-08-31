@@ -58,13 +58,14 @@ private:
   size_t _requested_size;
   size_t _actual_size;
   Type _alloc_type;
+  bool _archived;
 #ifdef ASSERT
   bool _actual_size_set;
 #endif
 
-  ShenandoahAllocRequest(size_t _min_size, size_t _requested_size, Type _alloc_type) :
+  ShenandoahAllocRequest(size_t _min_size, size_t _requested_size, Type _alloc_type, bool archived = false) :
           _min_size(_min_size), _requested_size(_requested_size),
-          _actual_size(0), _alloc_type(_alloc_type)
+          _actual_size(0), _alloc_type(_alloc_type), _archived(archived)
 #ifdef ASSERT
           , _actual_size_set(false)
 #endif
@@ -83,7 +84,7 @@ public:
     return ShenandoahAllocRequest(0, requested_size, _alloc_shared_gc);
   }
 
-  static inline ShenandoahAllocRequest for_shared(size_t requested_size) {
+  static inline ShenandoahAllocRequest for_shared(size_t requested_size, bool archived = false) {
     return ShenandoahAllocRequest(0, requested_size, _alloc_shared);
   }
 
@@ -97,6 +98,10 @@ public:
 
   inline const char* type_string() {
     return alloc_type_to_string(_alloc_type);
+  }
+
+  inline bool is_archived() {
+    return _archived;
   }
 
   inline size_t min_size() {

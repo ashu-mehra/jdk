@@ -392,13 +392,6 @@ jint ShenandoahHeap::initialize() {
   _phase_timings = new ShenandoahPhaseTimings(max_workers());
   ShenandoahCodeRoots::initialize();
 
-  if (ShenandoahPacing) {
-    _pacer = new ShenandoahPacer(this);
-    _pacer->setup_for_idle();
-  } else {
-    _pacer = NULL;
-  }
-
   _control_thread = new ShenandoahControlThread();
 
   ShenandoahInitLogger::print();
@@ -623,7 +616,16 @@ void ShenandoahHeap::post_initialize() {
 
   _heuristics->initialize();
 
+  if (ShenandoahPacing) {
+    _pacer = new ShenandoahPacer(this);
+    _pacer->setup_for_idle();
+  }
+
   JFR_ONLY(ShenandoahJFRSupport::register_jfr_type_serializers());
+}
+
+bool ShenandoahHeap::is_pacing_enabled() const {
+  return ShenandoahPacing && (_pacer != NULL);
 }
 
 size_t ShenandoahHeap::used() const {
@@ -667,7 +669,7 @@ void ShenandoahHeap::notify_mutator_alloc_words(size_t words, bool waste) {
     increase_used(bytes);
   }
   increase_allocated(bytes);
-  if (ShenandoahPacing) {
+  if (is_pacing_enabled()) {
     control_thread()->pacing_notify_alloc(words);
     if (waste) {
       pacer()->claim_for_alloc(words, true);
@@ -823,7 +825,7 @@ HeapWord* ShenandoahHeap::allocate_memory(ShenandoahAllocRequest& req) {
   HeapWord* result = NULL;
 
   if (req.is_mutator_alloc()) {
-    if (ShenandoahPacing) {
+    if (is_pacing_enabled()) {
       pacer()->pace_for_alloc(req.size());
       pacer_epoch = pacer()->epoch();
     }
@@ -881,7 +883,7 @@ HeapWord* ShenandoahHeap::allocate_memory(ShenandoahAllocRequest& req) {
       // If we requested more than we were granted, give the rest back to pacer.
       // This only matters if we are in the same pacing epoch: do not try to unpace
       // over the budget for the other phase.
-      if (ShenandoahPacing && (pacer_epoch > 0) && (requested > actual)) {
+      if (is_pacing_enabled() && (pacer_epoch > 0) && (requested > actual)) {
         pacer()->unpace_for_alloc(pacer_epoch, requested - actual);
       }
     } else {
@@ -991,7 +993,7 @@ private:
       assert(r->has_live(), "Region " SIZE_FORMAT " should have been reclaimed early", r->index());
       _sh->marked_object_iterate(r, &cl);
 
-      if (ShenandoahPacing) {
+      if (_sh->is_pacing_enabled()) {
         _sh->pacer()->report_evac(r->used() >> LogHeapWordSize);
       }
 
@@ -2044,7 +2046,7 @@ private:
       if (r->is_active() && !r->is_cset()) {
         _heap->marked_object_oop_iterate(r, &cl, update_watermark);
       }
-      if (ShenandoahPacing) {
+      if (_heap->is_pacing_enabled()) {
         _heap->pacer()->report_updaterefs(pointer_delta(update_watermark, r->bottom()));
       }
       if (_heap->check_cancelled_gc_and_yield(CONCURRENT)) {
@@ -2322,4 +2324,20 @@ bool ShenandoahHeap::requires_barriers(stackChunkOop obj) const {
   }
 
   return false;
+}
+
+HeapWord* ShenandoahHeap::allocate_loaded_archive_space(size_t size) {
+  ShenandoahAllocRequest req = ShenandoahAllocRequest::for_shared(size, true);
+  /*
+  bool in_new_region = false;
+  HeapWord* result = allocate_memory_under_lock(req, in_new_region);
+  if (in_new_region) {
+    control_thread()->notify_heap_changed();
+  }
+  if (result != NULL) {
+    increase_used(req.actual_size() * HeapWordSize);
+  }
+  */
+  HeapWord *result = allocate_memory(req);
+  return result;
 }

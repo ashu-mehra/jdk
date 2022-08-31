@@ -108,6 +108,11 @@ inline void ShenandoahMark::count_liveness(ShenandoahLiveData* live_data, oop ob
   ShenandoahHeapRegion* region = heap->get_region(region_idx);
   size_t size = obj->size();
 
+  /* For contiguous regions created for archived heap, live data is set at the time of allocation */
+  if (region->is_archived()) {
+    return;
+  }
+
   if (!region->is_humongous_start()) {
     assert(!region->is_humongous(), "Cannot have continuations here");
     ShenandoahLiveData cur = live_data[region_idx];

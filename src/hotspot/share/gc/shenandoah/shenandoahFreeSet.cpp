@@ -283,6 +283,8 @@ HeapWord* ShenandoahFreeSet::allocate_contiguous(ShenandoahAllocRequest& req) {
 
   size_t remainder = words_size & ShenandoahHeapRegion::region_size_words_mask();
 
+  bool archived_heap = req.is_archived();
+
   // Initialize regions:
   for (size_t i = beg; i <= end; i++) {
     ShenandoahHeapRegion* r = _heap->get_region(i);
@@ -291,10 +293,14 @@ HeapWord* ShenandoahFreeSet::allocate_contiguous(ShenandoahAllocRequest& req) {
     assert(i == beg || _heap->get_region(i - 1)->index() + 1 == r->index(), "Should be contiguous");
     assert(r->is_empty(), "Should be empty");
 
-    if (i == beg) {
-      r->make_humongous_start();
+    if (archived_heap) {
+      r->make_archived();
     } else {
-      r->make_humongous_cont();
+      if (i == beg) {
+        r->make_humongous_start();
+      } else {
+        r->make_humongous_cont();
+      }
     }
 
     // Trailing region may be non-full, record the remainder there
@@ -307,6 +313,9 @@ HeapWord* ShenandoahFreeSet::allocate_contiguous(ShenandoahAllocRequest& req) {
 
     r->set_top(r->bottom() + used_words);
 
+    if (archived_heap) {
+      r->set_live_data(used_words);
+    }
     _mutator_free_bitmap.clear_bit(r->index());
   }
 

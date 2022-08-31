@@ -58,7 +58,7 @@ ShenandoahControlThread::ShenandoahControlThread() :
   reset_gc_id();
   create_and_start();
   _periodic_task.enroll();
-  if (ShenandoahPacing) {
+  if (ShenandoahHeap::heap()->is_pacing_enabled()) {
     _periodic_pacer_notify_task.enroll();
   }
 }
@@ -73,7 +73,7 @@ void ShenandoahPeriodicTask::task() {
 }
 
 void ShenandoahPeriodicPacerNotify::task() {
-  assert(ShenandoahPacing, "Should not be here otherwise");
+  assert(ShenandoahHeap::heap()->is_pacing_enabled(), "Should not be here otherwise");
   ShenandoahHeap::heap()->pacer()->notify_waiters();
 }
 
@@ -102,6 +102,7 @@ void ShenandoahControlThread::run_service() {
     GCCause::Cause requested_gc_cause = _requested_gc_cause;
     bool explicit_gc_requested = is_gc_requested && is_explicit_gc(requested_gc_cause);
     bool implicit_gc_requested = is_gc_requested && !is_explicit_gc(requested_gc_cause);
+    bool is_pacing_enabled = ShenandoahHeap::heap()->is_pacing_enabled();
 
     // This control loop iteration have seen this much allocations.
     size_t allocs_seen = Atomic::xchg(&_allocs_seen, (size_t)0, memory_order_relaxed);
@@ -257,7 +258,7 @@ void ShenandoahControlThread::run_service() {
 
       // Commit worker statistics to cycle data
       heap->phase_timings()->flush_par_workers_to_cycle();
-      if (ShenandoahPacing) {
+      if (is_pacing_enabled) {
         heap->pacer()->flush_stats_to_cycle();
       }
 
@@ -268,7 +269,7 @@ void ShenandoahControlThread::run_service() {
           ResourceMark rm;
           LogStream ls(lt);
           heap->phase_timings()->print_cycle_on(&ls);
-          if (ShenandoahPacing) {
+          if (is_pacing_enabled) {
             heap->pacer()->print_cycle_on(&ls);
           }
         }
@@ -281,12 +282,12 @@ void ShenandoahControlThread::run_service() {
       MetaspaceUtils::print_metaspace_change(meta_sizes);
 
       // GC is over, we are at idle now
-      if (ShenandoahPacing) {
+      if (is_pacing_enabled) {
         heap->pacer()->setup_for_idle();
       }
     } else {
       // Allow allocators to know we have seen this much regions
-      if (ShenandoahPacing && (allocs_seen > 0)) {
+      if (is_pacing_enabled && (allocs_seen > 0)) {
         heap->pacer()->report_alloc(allocs_seen);
       }
     }
@@ -606,7 +607,7 @@ void ShenandoahControlThread::notify_heap_changed() {
 }
 
 void ShenandoahControlThread::pacing_notify_alloc(size_t words) {
-  assert(ShenandoahPacing, "should only call when pacing is enabled");
+  assert(ShenandoahHeap::heap()->is_pacing_enabled(), "should only call when pacing is enabled");
   Atomic::add(&_allocs_seen, words, memory_order_relaxed);
 }
 

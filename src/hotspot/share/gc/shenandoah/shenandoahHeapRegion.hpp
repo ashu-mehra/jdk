@@ -119,6 +119,7 @@ private:
     _cset,                    // region is in collection set
     _pinned,                  // region is pinned
     _pinned_cset,             // region is pinned and in cset (evac failure path)
+    _archived,
     _trash,                   // region contains only trash
     _REGION_STATES_NUM        // last
   };
@@ -182,12 +183,14 @@ public:
   void make_empty();
   void make_uncommitted();
   void make_committed_bypass();
+  void make_archived();
 
   // Individual states:
   bool is_empty_uncommitted()      const { return _state == _empty_uncommitted; }
   bool is_empty_committed()        const { return _state == _empty_committed; }
   bool is_regular()                const { return _state == _regular; }
   bool is_humongous_continuation() const { return _state == _humongous_cont; }
+  bool is_archived()               const { return _state == _archived; }
 
   // Participation in logical groups:
   bool is_empty()                  const { return is_empty_committed() || is_empty_uncommitted(); }

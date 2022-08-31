@@ -477,7 +477,7 @@ void ShenandoahConcurrentGC::entry_cleanup_complete() {
 
 void ShenandoahConcurrentGC::op_reset() {
   ShenandoahHeap* const heap = ShenandoahHeap::heap();
-  if (ShenandoahPacing) {
+  if (heap->is_pacing_enabled()) {
     heap->pacer()->setup_for_reset();
   }
 
@@ -553,7 +553,7 @@ void ShenandoahConcurrentGC::op_init_mark() {
   }
 
   ShenandoahStackWatermark::change_epoch_id();
-  if (ShenandoahPacing) {
+  if (heap->is_pacing_enabled()) {
     heap->pacer()->setup_for_mark();
   }
 }
@@ -609,7 +609,7 @@ void ShenandoahConcurrentGC::op_final_mark() {
       // Notify JVMTI that oops are changed.
       JvmtiTagMap::set_needs_rehashing();
 
-      if (ShenandoahPacing) {
+      if (heap->is_pacing_enabled()) {
         heap->pacer()->setup_for_evac();
       }
     } else {
@@ -931,7 +931,7 @@ void ShenandoahConcurrentGC::op_init_updaterefs() {
   heap->prepare_update_heap_references(true /*concurrent*/);
   heap->set_update_refs_in_progress(true);
 
-  if (ShenandoahPacing) {
+  if (heap->is_pacing_enabled()) {
     heap->pacer()->setup_for_updaterefs();
   }
 }

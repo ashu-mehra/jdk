@@ -301,6 +301,19 @@ void ShenandoahHeapRegion::make_committed_bypass() {
   }
 }
 
+void ShenandoahHeapRegion::make_archived() {
+  shenandoah_assert_heaplocked();
+  switch (_state) {
+    case _empty_uncommitted:
+      do_commit();
+    case _empty_committed:
+      set_state(_archived);
+      return;
+    default:
+      report_illegal_transition("archived allocation");
+  }
+}
+
 void ShenandoahHeapRegion::reset_alloc_metadata() {
   _tlab_allocs = 0;
   _gclab_allocs = 0;

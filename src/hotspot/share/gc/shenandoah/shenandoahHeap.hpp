@@ -399,9 +399,9 @@ public:
   ShenandoahHeuristics*      heuristics()        const { return _heuristics;        }
   ShenandoahFreeSet*         free_set()          const { return _free_set;          }
   ShenandoahPacer*           pacer()             const { return _pacer;             }
-
   ShenandoahPhaseTimings*    phase_timings()     const { return _phase_timings;     }
 
+  bool                       is_pacing_enabled() const;
   ShenandoahVerifier*        verifier();
 
 // ---------- VM subsystem bindings
@@ -626,6 +626,12 @@ public:
   // Call before/after evacuation.
   inline void enter_evacuation(Thread* t);
   inline void leave_evacuation(Thread* t);
+
+// ---------- Archived Heap support
+//
+  virtual bool can_load_archived_objects() const { return UseCompressedOops; }
+  virtual HeapWord* allocate_loaded_archive_space(size_t size);
+
 
 // ---------- Helper functions
 //

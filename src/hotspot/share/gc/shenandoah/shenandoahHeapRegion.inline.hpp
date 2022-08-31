@@ -74,14 +74,18 @@ inline void ShenandoahHeapRegion::increase_live_data_alloc_words(size_t s) {
 }
 
 inline void ShenandoahHeapRegion::increase_live_data_gc_words(size_t s) {
+  ShenandoahHeap *heap =  ShenandoahHeap::heap();
   internal_increase_live_data(s);
-  if (ShenandoahPacing) {
-    ShenandoahHeap::heap()->pacer()->report_mark(s);
+  if (heap->is_pacing_enabled()) {
+   heap->pacer()->report_mark(s);
   }
 }
 
 inline void ShenandoahHeapRegion::internal_increase_live_data(size_t s) {
+  assert(!is_archived(), "cannot increate live data for an archived heap region");
+  size_t live_data = _live_data;
   size_t new_live_data = Atomic::add(&_live_data, s, memory_order_relaxed);
+  log_warning(gc)("_live_data: " SIZE_FORMAT ", new_live_data: " SIZE_FORMAT, live_data, new_live_data);
 #ifdef ASSERT
   size_t live_bytes = new_live_data * HeapWordSize;
   size_t used_bytes = used();
