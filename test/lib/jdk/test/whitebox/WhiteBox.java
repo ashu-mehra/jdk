@@ -482,6 +482,9 @@ public class WhiteBox {
   public final String AFTER_MARKING_STARTED = "AFTER MARKING STARTED";
   public final String BEFORE_MARKING_COMPLETED = "BEFORE MARKING COMPLETED";
 
+  public final String AFTER_EVACUATION_STARTED = "AFTER EVACUATION STARTED";
+  public final String BEFORE_EVACUATION_COMPLETED = "BEFORE EVACUATION COMPLETED";
+
   // Collectors supporting concurrent GC breakpoints that do reference
   // processing concurrently should provide the following breakpoint.
   public final String AFTER_CONCURRENT_REFERENCE_PROCESSING_STARTED =

@@ -63,3 +63,11 @@ void ShenandoahBreakpoint::at_before_marking_completed() {
 void ShenandoahBreakpoint::at_after_reference_processing_started() {
   ConcurrentGCBreakpoints::at("AFTER CONCURRENT REFERENCE PROCESSING STARTED");
 }
+
+void ShenandoahBreakpoint::at_after_evacuation_started() {
+  ConcurrentGCBreakpoints::at("AFTER EVACUATION STARTED");
+}
+
+void ShenandoahBreakpoint::at_before_evacuation_completed() {
+  ConcurrentGCBreakpoints::at("BEFORE EVACUATION COMPLETED");
+}

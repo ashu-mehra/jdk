@@ -85,6 +85,23 @@ public:
   }
 };
 
+class ShenandoahBreakpointEvacScope : public StackObj {
+private:
+  const GCCause::Cause _cause;
+public:
+  ShenandoahBreakpointEvacScope(GCCause::Cause cause) : _cause(cause) {
+    if (_cause == GCCause::_wb_breakpoint) {
+      ShenandoahBreakpoint::at_after_evacuation_started();
+    }
+  }
+
+  ~ShenandoahBreakpointEvacScope() {
+    if (_cause == GCCause::_wb_breakpoint) {
+      ShenandoahBreakpoint::at_before_evacuation_completed();
+    }
+  }
+};
+
 ShenandoahConcurrentGC::ShenandoahConcurrentGC() :
   _mark(),
   _degen_point(ShenandoahDegenPoint::_degenerated_unset) {
@@ -159,6 +176,7 @@ bool ShenandoahConcurrentGC::collect(GCCause::Cause cause) {
   // This may be skipped if there is nothing to evacuate.
   // If so, evac_in_progress would be unset by collection set preparation code.
   if (heap->is_evacuation_in_progress()) {
+    ShenandoahBreakpointEvacScope breakpont_evac_scope(cause);
     // Concurrently evacuate
     entry_evacuate();
     if (check_cancellation_and_abort(ShenandoahDegenPoint::_degenerated_evac)) return false;

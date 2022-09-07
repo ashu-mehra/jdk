@@ -40,5 +40,7 @@ public:
   static void at_after_marking_started();
   static void at_before_marking_completed();
   static void at_after_reference_processing_started();
+  static void at_after_evacuation_started();
+  static void at_before_evacuation_completed();
 };
 #endif // SHARE_GC_SHENANDOAH_SHENANDOAHBREAKPOINT_HPP
