@@ -72,6 +72,16 @@ const double CLEAN_DEAD_HIGH_WATER_MARK = 0.5;
 
 #if INCLUDE_CDS_JAVA_HEAP
 inline oop read_string_from_compact_hashtable(address base_address, u4 offset) {
+  FileMapInfo* current_info = FileMapInfo::current_info();
+  ArchiveOopDecoder* oop_decoder = current_info->get_oop_decoder();
+
+  uintptr_t ptr = (uintptr_t)offset;
+  if (!UseCompressedOops) {
+    ptr += (uintptr_t)current_info->header()->heap_begin();
+  }
+  return oop_decoder->decode(ptr);
+
+#if 0
   if (UseCompressedOops) {
     assert(sizeof(narrowOop) == sizeof(offset), "must be");
     narrowOop v = CompressedOops::narrow_oop_cast(offset);
@@ -84,6 +94,7 @@ inline oop read_string_from_compact_hashtable(address base_address, u4 offset) {
                            (intptr_t)ArchiveHeapLoader::runtime_delta();
     return (oop)cast_to_oop(runtime_oop);
   }
+#endif
 }
 
 typedef CompactHashtable<

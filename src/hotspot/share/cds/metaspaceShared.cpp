@@ -1462,7 +1462,7 @@ void MetaspaceShared::initialize_shared_spaces() {
   // shared string/symbol tables.
   char* buffer = static_mapinfo->serialized_data();
   intptr_t* array = (intptr_t*)buffer;
-  ReadClosure rc(&array);
+  ReadClosure rc(&array, static_mapinfo->get_oop_decoder());
   serialize(&rc);
 
   // Initialize the run-time symbol table.
@@ -1471,6 +1471,7 @@ void MetaspaceShared::initialize_shared_spaces() {
   // Finish up archived heap initialization. These must be
   // done after ReadClosure.
   static_mapinfo->patch_heap_embedded_pointers();
+  static_mapinfo->complete_heap_regions_mapping();
   ArchiveHeapLoader::finish_initialization();
 
   // Close the mapinfo file

@@ -69,9 +69,12 @@ void ArchiveHeapLoader::init_narrow_oop_decoding(address base, int shift) {
 
 void ArchiveHeapLoader::fixup_regions() {
   FileMapInfo* mapinfo = FileMapInfo::current_info();
+#if 0
   if (is_mapped()) {
     mapinfo->fixup_mapped_heap_regions();
-  } else if (_loading_failed) {
+  } else
+#endif
+  if (_loading_failed) {
     fill_failed_loaded_region();
   }
   if (is_fully_available()) {
@@ -84,6 +87,7 @@ void ArchiveHeapLoader::fixup_regions() {
 }
 
 // ------------------ Support for Region MAPPING -----------------------------------------
+#if 0
 
 // Patch all the embedded oop pointers inside an archived heap region,
 // to be consistent with the runtime oop encoding.
@@ -139,6 +143,7 @@ void ArchiveHeapLoader::patch_embedded_pointers(MemRegion region, address oopmap
     bm.iterate(&patcher);
   }
 }
+#endif /* if 0 */
 
 // ------------------ Support for Region LOADING -----------------------------------------
 

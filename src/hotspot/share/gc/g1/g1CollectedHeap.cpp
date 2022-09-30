@@ -526,6 +526,122 @@ HeapWord* G1CollectedHeap::archive_mem_allocate(size_t word_size) {
   return _archive_allocator->archive_mem_allocate(word_size);
 }
 
+#if 0
+bool G1CollectedHeap::check_archive_regions_range(MemRegion region) {
+  if ((region.end() - region.start()) > (end() - start())) {
+    return false; // archived regions are larger than heap size
+  }
+
+  return true;
+}
+#endif
+
+HeapWord* G1CollectedHeap::heap_start() {
+  if (UseCompressedOops) {
+    return (HeapWord *)CompressedOops::begin();
+  } else {
+    return reserved().start();
+  }
+}
+
+HeapWord* G1CollectedHeap::max_heap_end() {
+  if (UseCompressedOops) {
+    return (HeapWord *)CompressedOops::end();
+  } else {
+    return reserved().end();
+  }
+}
+
+bool G1CollectedHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
+  MutexLocker x(Heap_lock);
+  // Temporarily disable pretouching of heap pages. This interface is used
+  // when mmap'ing archived heap data in, so pre-touching is wasted.
+  FlagSetting fs(AlwaysPreTouch, false);
+
+  size_t total_size = 0;
+  size_t alignment = os::vm_page_size();
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t region_size = dumptime_regions[i].byte_size();
+    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
+           "is not aligned to OS default page size", region_size);
+    total_size += region_size;
+  }
+  size_t allocated = 0;
+  HeapRegion* hr = NULL;
+  HeapWord* mem_end = NULL;
+  HeapWord* mem_begin = NULL;
+
+  // start allocating heap regions from the heap end
+  do {
+    hr = alloc_highest_free_region();
+    if (hr == NULL) {
+      int shrink_count = 0;
+      // deallocate previously allocated regions
+      while (mem_begin != mem_end) {
+        HeapRegion* curr_region = _hrm.addr_to_region(mem_begin);
+        _hrm.shrink_at(curr_region->hrm_index(), 1);
+        mem_begin += HeapRegion::GrainWords;
+        shrink_count += 1;
+      }
+      if (shrink_count > 0) {
+        uncommit_regions(shrink_count);
+      }
+      return false;
+    }
+    mem_begin = hr->bottom();
+    if (allocated == 0) { // first allocated region
+      mem_end = hr->end();
+    }
+    // Mark each region as archive
+    if (is_open) {
+      hr->set_open_archive();
+    } else {
+      hr->set_closed_archive();
+    }
+    allocated += HeapRegion::GrainBytes;
+  } while (allocated < total_size);
+
+  mem_begin = hr->bottom();
+
+  HeapRegion* prev_range_last_region = NULL;
+  for (int i = 0; i < num_regions; i++) {
+    size_t word_size = dumptime_regions[i].word_size();
+    MemRegion* curr_range = &runtime_regions[i];
+    if (i == 0) {
+      curr_range->set_start(mem_begin);
+    } else {
+      // next range should be aligned to page size
+      curr_range->set_start(align_up(runtime_regions[i-1].end(), alignment));
+    }
+    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
+    curr_range->set_end(curr_range->start() + word_size);
+
+    // Add each G1 region touched by the range to the old set, and set the top.
+    HeapRegion* curr_region = _hrm.addr_to_region(curr_range->start());
+    HeapWord* last_address = curr_range->last();
+    HeapRegion* last_region = _hrm.addr_to_region(last_address);
+
+    while (curr_region != NULL) {
+      if (curr_region != prev_range_last_region) {
+        _hr_printer.alloc(curr_region);
+        _archive_set.add(curr_region);
+      }
+      if (curr_region != last_region) {
+        curr_region->set_top(curr_region->end());
+        curr_region = _hrm.next_region_in_heap(curr_region);
+      } else {
+        curr_region->set_top(last_address + 1);
+        curr_region = NULL;
+      }
+    }
+    prev_range_last_region = last_region;
+  }
+
+  increase_used(total_size);
+  return true;
+}
+
 void G1CollectedHeap::end_archive_alloc_range(GrowableArray<MemRegion>* ranges,
                                               size_t end_alignment_in_bytes) {
   assert_at_safepoint_on_vm_thread();
@@ -556,6 +672,7 @@ bool G1CollectedHeap::alloc_archive_regions(MemRegion* ranges,
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(ranges != NULL, "MemRegion array NULL");
   assert(count != 0, "No MemRegions provided");
+
   MutexLocker x(Heap_lock);
 
   MemRegion reserved = _hrm.reserved();
@@ -732,6 +849,10 @@ inline HeapWord* G1CollectedHeap::attempt_allocation(size_t min_word_size,
   return result;
 }
 
+void G1CollectedHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
+  populate_archive_regions_bot_part(regions, num_regions);
+}
+
 void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion* ranges, size_t count) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(ranges != NULL, "MemRegion array NULL");
@@ -753,10 +874,10 @@ void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion* ranges, size_
   }
 }
 
-void G1CollectedHeap::dealloc_archive_regions(MemRegion* ranges, size_t count) {
+void G1CollectedHeap::dealloc_archive_regions(MemRegion* ranges, int num_regions) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(ranges != NULL, "MemRegion array NULL");
-  assert(count != 0, "No MemRegions provided");
+  assert(num_regions != 0, "No MemRegions provided");
   MemRegion reserved = _hrm.reserved();
   HeapWord* prev_last_addr = NULL;
   HeapRegion* prev_last_region = NULL;
@@ -766,7 +887,7 @@ void G1CollectedHeap::dealloc_archive_regions(MemRegion* ranges, size_t count) {
   // For each Memregion, free the G1 regions that constitute it, and
   // notify mark-sweep that the range is no longer to be considered 'archive.'
   MutexLocker x(Heap_lock);
-  for (size_t i = 0; i < count; i++) {
+  for (int i = 0; i < num_regions; i++) {
     HeapWord* start_address = ranges[i].start();
     HeapWord* last_address = ranges[i].last();
 

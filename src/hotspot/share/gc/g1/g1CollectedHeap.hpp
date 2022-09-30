@@ -701,6 +701,14 @@ public:
   void end_archive_alloc_range(GrowableArray<MemRegion>* ranges,
                                size_t end_alignment_in_bytes = 0);
 
+  //bool check_archive_regions_range(MemRegion region);
+
+  virtual HeapWord* heap_start();
+  virtual HeapWord* max_heap_end();
+
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
+  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions);
+
   // Facility for allocating a fixed range within the heap and marking
   // the containing regions as 'archive'. For use at JVM init time, when the
   // caller may mmap archived heap data at the specified range(s).
@@ -726,7 +734,7 @@ public:
   // which had been allocated by alloc_archive_regions. This should be called
   // rather than fill_archive_regions at JVM init time if the archive file
   // mapping failed, with the same non-overlapping and sorted MemRegion array.
-  void dealloc_archive_regions(MemRegion* range, size_t count);
+  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
 
 private:
 

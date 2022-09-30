@@ -287,6 +287,31 @@ void WriteClosure::do_region(u_char* start, size_t size) {
   }
 }
 
+oop ArchiveNarrowOopDecoder::decode(uintptr_t ptr) {
+  narrowOop o = CompressedOops::narrow_oop_cast(ptr);
+  if (CompressedOops::is_null(o)) {
+    return NULL;
+  } else {
+    uintptr_t p = (uintptr_t)_narrow_oop_base + (ptr << _narrow_oop_shift);
+    uintptr_t result = _closed_regions->dumptime_to_runtime(p);
+    if (!result) {
+      result = _open_regions->dumptime_to_runtime(p);
+    }
+    return cast_to_oop(result);
+  }
+}
+
+oop ArchiveWideOopDecoder::decode(uintptr_t ptr) {
+  if (ptr == 0) {
+    return NULL;
+  }
+  uintptr_t result = _closed_regions->dumptime_to_runtime(ptr);
+  if (!result) {
+    result = _open_regions->dumptime_to_runtime(ptr);
+  }
+  return cast_to_oop(result);
+}
+
 void ReadClosure::do_ptr(void** p) {
   assert(*p == NULL, "initializing previous initialized pointer.");
   intptr_t obj = nextPtr();
@@ -314,8 +339,10 @@ void ReadClosure::do_tag(int tag) {
 }
 
 void ReadClosure::do_oop(oop *p) {
+  *p = _oop_decoder->decode(nextPtr());
+#if 0
   if (UseCompressedOops) {
-    narrowOop o = CompressedOops::narrow_oop_cast(nextPtr());
+    narrowOop o = CompresedOops::narrow_oop_cast(nextPtr());
     if (CompressedOops::is_null(o) || !ArchiveHeapLoader::is_fully_available()) {
       *p = NULL;
     } else {
@@ -332,6 +359,7 @@ void ReadClosure::do_oop(oop *p) {
       *p = cast_to_oop(runtime_oop);
     }
   }
+#endif
 }
 
 void ReadClosure::do_region(u_char* start, size_t size) {
