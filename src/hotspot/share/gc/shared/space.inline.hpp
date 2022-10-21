@@ -72,6 +72,16 @@ inline HeapWord* OffsetTableContigSpace::par_allocate(size_t size) {
   return res;
 }
 
+inline HeapWord* OffsetTableContigSpace::par_allocate_aligned(size_t size, size_t alignment) {
+  MutexLocker x(&_par_alloc_lock);
+  HeapWord* res = ContiguousSpace::par_allocate_aligned(size, alignment);
+  if (res != NULL) {
+    size_t actual_size = size + align_up(res, alignment) - res;
+    _offsets.alloc_block(res, actual_size);
+  }
+  return res;
+}
+
 inline HeapWord*
 OffsetTableContigSpace::block_start_const(const void* p) const {
   return _offsets.block_start(p);

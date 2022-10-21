@@ -518,6 +518,12 @@ class CollectedHeap : public CHeapObj<mtGC> {
   virtual HeapWord* allocate_loaded_archive_space(size_t size) { return NULL; }
   virtual void complete_loaded_archive_space(MemRegion archive_space) { }
 
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) { return false; }
+  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions) { return; }
+  virtual void dealloc_archive_regions(MemRegion* range, int num_regions) { return; }
+  virtual HeapWord* heap_start() { return NULL; }
+  virtual HeapWord* max_heap_end() { return NULL; }
+
   virtual bool is_oop(oop object) const;
   // Non product verification and debugging.
 #ifndef PRODUCT

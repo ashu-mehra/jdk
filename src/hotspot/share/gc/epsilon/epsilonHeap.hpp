@@ -48,6 +48,8 @@ private:
   int64_t _decay_time_ns;
   volatile size_t _last_counter_update;
   volatile size_t _last_heap_print;
+  MemRegion* _archive_regions;
+  int _archive_regions_count;
 
 public:
   static EpsilonHeap* heap();
@@ -91,7 +93,7 @@ public:
   }
 
   // Allocation
-  HeapWord* allocate_work(size_t size, bool verbose = true);
+  HeapWord* allocate_work(size_t size, bool verbose = true, size_t alignment = 0);
   virtual HeapWord* mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded);
   virtual HeapWord* allocate_new_tlab(size_t min_size,
                                       size_t requested_size,
@@ -113,6 +115,8 @@ public:
   virtual bool supports_object_pinning() const           { return true; }
   virtual oop pin_object(JavaThread* thread, oop obj)    { return obj; }
   virtual void unpin_object(JavaThread* thread, oop obj) { }
+
+  virtual bool is_archived_object(oop object) const;
 
   // No support for block parsing.
   HeapWord* block_start(const void* addr) const { return NULL;  }
@@ -136,6 +140,12 @@ public:
   // Support for loading objects from CDS archive into the heap
   virtual bool can_load_archived_objects() const { return UseCompressedOops; }
   virtual HeapWord* allocate_loaded_archive_space(size_t size);
+
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
+  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
+
+  virtual HeapWord* heap_start() { return _space->bottom(); }
+  virtual HeapWord* max_heap_end() { return (HeapWord*)((uintptr_t)_space->bottom() + max_capacity()); }
 
   virtual void print_on(outputStream* st) const;
   virtual void print_tracing_info() const;
