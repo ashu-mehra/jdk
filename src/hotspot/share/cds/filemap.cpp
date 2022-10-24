@@ -2608,53 +2608,8 @@ class PatchEmbeddedPointers: public BitMapClosure {
   }
 };
 
-/*
-class PatchCompressedEmbeddedPointers: public BitMapClosure {
-  narrowOop* _start;
-  bool _in_open_region;
-  ArchiveOopDecoder* _oop_decoder;
-
- public:
-  PatchCompressedEmbeddedPointers(narrowOop* start, bool in_open_region, ArchiveOopDecoder* oop_decoder) :
-    _start(start),
-    _in_open_region(in_open_region),
-    _oop_decoder(oop_decoder)
-
-  bool do_bit(size_t offset) {
-    narrowOop* p = _start + offset;
-    uintptr_t dumptime_oop = (uintptr_t)((void*)*p);
-    assert(!CompressedOops::is_null(*p), "null oops should have been filtered out at dump time");
-    oop runtime_oop = _oop_decoder->decode(dumptime_oop);
-    RawAccess<IS_NOT_NULL>::oop_store(p, runtime_oop);
-    return true;
-  }
-};
-
-class PatchUncompressedEmbeddedPointers: public BitMapClosure {
-  oop* _start;
-  bool _in_open_region;
-  ArchiveOopDecoder* _oop_decoder;
-
- public:
-  PatchUncompressedEmbeddedPointers(oop* start, bool in_open_region, ArchiveOopDecoder* oop_decoder) :
-    _start(start),
-    _in_open_region(in_open_region),
-    _oop_decoder(oop_decoder)
-  {}
-
-  bool do_bit(size_t offset) {
-    oop* p = _start + offset;
-    uintptr_t dumptime_oop = (uintptr_t)((void*)*p);
-    assert(dumptime_oop != 0, "null oops should have been filtered out at dump time");
-    oop runtime_oop = _oop_decoder->decode(dumptime_oop);
-    RawAccess<IS_NOT_NULL>::oop_store(p, runtime_oop);
-    return true;
-  }
-};
-*/
-
 ArchiveOopDecoder* FileMapInfo::get_oop_decoder() {
-  if (!_oop_decoder) {
+  if (ArchiveHeapLoader::can_map() && !_oop_decoder) {
     if (UseCompressedOops) {
       _oop_decoder = new ArchiveNarrowOopDecoder(_closed_regions_data, _open_regions_data, narrow_oop_base(), narrow_oop_shift());
     } else {

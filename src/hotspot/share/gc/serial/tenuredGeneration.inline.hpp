@@ -59,10 +59,24 @@ HeapWord* TenuredGeneration::allocate(size_t word_size,
   return _the_space->allocate(word_size);
 }
 
+HeapWord* TenuredGeneration::allocate_aligned(size_t word_size,
+                                                 size_t alignment,
+                                                 bool is_tlab) {
+  assert(!is_tlab, "TenuredGeneration does not support TLAB allocation");
+  return _the_space->allocate_aligned(word_size, alignment);
+}
+
 HeapWord* TenuredGeneration::par_allocate(size_t word_size,
                                                      bool is_tlab) {
   assert(!is_tlab, "TenuredGeneration does not support TLAB allocation");
   return _the_space->par_allocate(word_size);
+}
+
+HeapWord* TenuredGeneration::par_allocate_aligned(size_t word_size,
+                                                     size_t alignment,
+                                                     bool is_tlab) {
+  assert(!is_tlab, "TenuredGeneration does not support TLAB allocation");
+  return _the_space->par_allocate_aligned(word_size, alignment);
 }
 
 size_t TenuredGeneration::block_size(const HeapWord* addr) const {

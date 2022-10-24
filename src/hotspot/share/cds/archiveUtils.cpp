@@ -339,27 +339,28 @@ void ReadClosure::do_tag(int tag) {
 }
 
 void ReadClosure::do_oop(oop *p) {
-  *p = _oop_decoder->decode(nextPtr());
-#if 0
-  if (UseCompressedOops) {
-    narrowOop o = CompresedOops::narrow_oop_cast(nextPtr());
-    if (CompressedOops::is_null(o) || !ArchiveHeapLoader::is_fully_available()) {
-      *p = NULL;
-    } else {
-      assert(ArchiveHeapLoader::can_use(), "sanity");
-      assert(ArchiveHeapLoader::is_fully_available(), "must be");
-      *p = ArchiveHeapLoader::decode_from_archive(o);
-    }
+  if (_oop_decoder) {
+    *p = _oop_decoder->decode(nextPtr());
   } else {
-    intptr_t dumptime_oop = nextPtr();
-    if (dumptime_oop == 0 || !ArchiveHeapLoader::is_fully_available()) {
-      *p = NULL;
+    if (UseCompressedOops) {
+      narrowOop o = CompressedOops::narrow_oop_cast(nextPtr());
+      if (CompressedOops::is_null(o) || !ArchiveHeapLoader::is_fully_available()) {
+        *p = NULL;
+      } else {
+        assert(ArchiveHeapLoader::can_use(), "sanity");
+        assert(ArchiveHeapLoader::is_fully_available(), "must be");
+        *p = ArchiveHeapLoader::decode_from_archive(o);
+      }
     } else {
-      intptr_t runtime_oop = dumptime_oop + ArchiveHeapLoader::runtime_delta();
-      *p = cast_to_oop(runtime_oop);
+      intptr_t dumptime_oop = nextPtr();
+      if (dumptime_oop == 0 || !ArchiveHeapLoader::is_fully_available()) {
+        *p = NULL;
+      } else {
+        intptr_t runtime_oop = dumptime_oop + ArchiveHeapLoader::runtime_delta();
+        *p = cast_to_oop(runtime_oop);
+      }
     }
   }
-#endif
 }
 
 void ReadClosure::do_region(u_char* start, size_t size) {

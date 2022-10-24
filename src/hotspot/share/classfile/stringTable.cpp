@@ -75,26 +75,26 @@ inline oop read_string_from_compact_hashtable(address base_address, u4 offset) {
   FileMapInfo* current_info = FileMapInfo::current_info();
   ArchiveOopDecoder* oop_decoder = current_info->get_oop_decoder();
 
-  uintptr_t ptr = (uintptr_t)offset;
-  if (!UseCompressedOops) {
-    ptr += (uintptr_t)current_info->header()->heap_begin();
-  }
-  return oop_decoder->decode(ptr);
-
-#if 0
-  if (UseCompressedOops) {
-    assert(sizeof(narrowOop) == sizeof(offset), "must be");
-    narrowOop v = CompressedOops::narrow_oop_cast(offset);
-    return ArchiveHeapLoader::decode_from_archive(v);
+  if (oop_decoder) {
+    uintptr_t ptr = (uintptr_t)offset;
+    if (!UseCompressedOops) {
+      ptr += (uintptr_t)current_info->header()->heap_begin();
+    }
+    return oop_decoder->decode(ptr);
   } else {
-    intptr_t dumptime_oop = (uintptr_t)offset;
-    assert(dumptime_oop != 0, "null strings cannot be interned");
-    intptr_t runtime_oop = dumptime_oop +
-                           (intptr_t)FileMapInfo::current_info()->header()->heap_begin() +
-                           (intptr_t)ArchiveHeapLoader::runtime_delta();
-    return (oop)cast_to_oop(runtime_oop);
+    if (UseCompressedOops) {
+      assert(sizeof(narrowOop) == sizeof(offset), "must be");
+      narrowOop v = CompressedOops::narrow_oop_cast(offset);
+      return ArchiveHeapLoader::decode_from_archive(v);
+    } else {
+      intptr_t dumptime_oop = (uintptr_t)offset;
+      assert(dumptime_oop != 0, "null strings cannot be interned");
+      intptr_t runtime_oop = dumptime_oop +
+                             (intptr_t)FileMapInfo::current_info()->header()->heap_begin() +
+                             (intptr_t)ArchiveHeapLoader::runtime_delta();
+      return (oop)cast_to_oop(runtime_oop);
+    }
   }
-#endif
 }
 
 typedef CompactHashtable<

@@ -87,7 +87,6 @@ void ArchiveHeapLoader::fixup_regions() {
 }
 
 // ------------------ Support for Region MAPPING -----------------------------------------
-#if 0
 
 // Patch all the embedded oop pointers inside an archived heap region,
 // to be consistent with the runtime oop encoding.
@@ -143,7 +142,6 @@ void ArchiveHeapLoader::patch_embedded_pointers(MemRegion region, address oopmap
     bm.iterate(&patcher);
   }
 }
-#endif /* if 0 */
 
 // ------------------ Support for Region LOADING -----------------------------------------
 

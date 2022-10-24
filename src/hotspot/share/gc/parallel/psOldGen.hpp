@@ -78,7 +78,7 @@ class PSOldGen : public CHeapObj<mtGC> {
     return res;
   }
 
-  HeapWord* cas_allocate_aligned_noexpand(size_t word_size, size_t alignement) {
+  HeapWord* cas_allocate_aligned_noexpand(size_t word_size, size_t alignment) {
     assert_locked_or_safepoint(Heap_lock);
     HeapWord* res = object_space()->cas_allocate_aligned(word_size, alignment);
     if (res != NULL) {

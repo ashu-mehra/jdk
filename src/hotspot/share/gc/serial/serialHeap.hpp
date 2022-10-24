@@ -61,6 +61,9 @@ private:
   MemoryPool* _survivor_pool;
   MemoryPool* _old_pool;
 
+  MemRegion* _archive_regions;
+  int _archive_regions_count;
+
   virtual void initialize_serviceability();
 
 public:
@@ -108,6 +111,12 @@ public:
   bool can_load_archived_objects() const { return UseCompressedOops; }
   HeapWord* allocate_loaded_archive_space(size_t size);
   void complete_loaded_archive_space(MemRegion archive_space);
+
+  virtual bool is_archived_object(oop object) const;
+
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
+  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions);
+  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
 };
 
 #endif // SHARE_GC_SERIAL_SERIALHEAP_HPP

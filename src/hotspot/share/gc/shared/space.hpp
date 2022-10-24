@@ -211,6 +211,10 @@ class Space: public CHeapObj<mtGC> {
   // mutually exclusive access to the space.
   virtual HeapWord* allocate(size_t word_size) = 0;
 
+  // Allocation (return NULL if full).  Assumes the caller has established
+  // mutually exclusive access to the space.
+  virtual HeapWord* allocate_aligned(size_t word_size, size_t alignment) = 0;
+
   // Allocation (return NULL if full).  Enforces mutual exclusion internally.
   virtual HeapWord* par_allocate(size_t word_size) = 0;
 
@@ -436,6 +440,7 @@ class ContiguousSpace: public CompactibleSpace {
 
   // Allocation helpers (return NULL if full).
   inline HeapWord* allocate_impl(size_t word_size);
+  inline HeapWord* allocate_aligned_impl(size_t word_size, size_t alignment);
   inline HeapWord* par_allocate_impl(size_t word_size);
   inline HeapWord* par_allocate_aligned_impl(size_t word_size, size_t alignment);
 
@@ -488,6 +493,7 @@ class ContiguousSpace: public CompactibleSpace {
 
   // Allocation (return NULL if full)
   virtual HeapWord* allocate(size_t word_size);
+  virtual HeapWord* allocate_aligned(size_t word_size, size_t alignment);
   virtual HeapWord* par_allocate(size_t word_size);
   virtual HeapWord* par_allocate_aligned(size_t word_size, size_t alignment);
 
@@ -633,8 +639,9 @@ class OffsetTableContigSpace: public ContiguousSpace {
 
   // Add offset table update.
   virtual inline HeapWord* allocate(size_t word_size);
-  inline HeapWord* par_allocate(size_t word_size);
-  inline HeapWord* par_allocate_aligned(size_t word_size, size_t alignment);
+  virtual inline HeapWord* allocate_aligned(size_t word_size, size_t alignment);
+  virtual inline HeapWord* par_allocate(size_t word_size);
+  virtual inline HeapWord* par_allocate_aligned(size_t word_size, size_t alignment);
 
   // MarkSweep support phase3
   virtual void initialize_threshold();
