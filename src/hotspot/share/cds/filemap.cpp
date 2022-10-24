@@ -2151,25 +2151,6 @@ void FileMapInfo::set_shared_heap_runtime_delta(ptrdiff_t delta) {
   }
 }
 
-ArchiveHeapRegionsData::ArchiveHeapRegionsData(int max_count) {
-  _dumptime_regions = MemRegion::create_array(max_count, mtInternal);
-  _runtime_regions = MemRegion::create_array(max_count, mtInternal);
-  _region_idx = (int *)os::malloc(sizeof(int)*max_count, mtInternal);
-  _num_regions = max_count;
-}
-
-ArchiveHeapRegionsData::~ArchiveHeapRegionsData() {
-  if (_dumptime_regions) {
-    MemRegion::destroy_array(_dumptime_regions, _num_regions);
-  }
-  if (_runtime_regions) {
-    MemRegion::destroy_array(_runtime_regions, _num_regions);
-  }
-  if (_region_idx) {
-    os::free(_region_idx);
-  }
-}
-
 void FileMapInfo::init_archive_heap_data(int first_region_idx, int last_region_idx, ArchiveHeapRegionsData** heap_regions_data) {
   ArchiveHeapRegionsData* regions_data = new ArchiveHeapRegionsData(last_region_idx - first_region_idx + 1);
   int count = 0;

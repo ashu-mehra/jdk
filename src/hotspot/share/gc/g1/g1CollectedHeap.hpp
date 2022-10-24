@@ -703,11 +703,11 @@ public:
 
   //bool check_archive_regions_range(MemRegion region);
 
-  virtual HeapWord* heap_start();
-  virtual HeapWord* max_heap_end();
+  virtual HeapWord* heap_start() override;
+  virtual HeapWord* max_heap_end() override;
 
-  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
-  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions);
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) override;
+  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions) override;
 
   // Facility for allocating a fixed range within the heap and marking
   // the containing regions as 'archive'. For use at JVM init time, when the
@@ -734,7 +734,7 @@ public:
   // which had been allocated by alloc_archive_regions. This should be called
   // rather than fill_archive_regions at JVM init time if the archive file
   // mapping failed, with the same non-overlapping and sorted MemRegion array.
-  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
+  virtual void dealloc_archive_regions(MemRegion* range, int num_regions) override;
 
 private:
 

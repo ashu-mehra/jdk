@@ -338,8 +338,8 @@ private:
   FileMapHeader* _header;
 
   ArchiveOopDecoder* _oop_decoder;
-  ArchiveHeapRegionsData *_closed_regions_data;
-  ArchiveHeapRegionsData *_open_regions_data;
+  ArchiveHeapRegionsData* _closed_regions_data;
+  ArchiveHeapRegionsData* _open_regions_data;
 
   // TODO: Probably change the following to be non-static
   static SharedPathTable       _shared_path_table;
@@ -586,7 +586,7 @@ public:
   address heap_region_runtime_start_address(FileMapRegion* spc) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
   void set_shared_heap_runtime_delta(ptrdiff_t delta) NOT_CDS_JAVA_HEAP_RETURN;
   void  map_heap_regions_impl() NOT_CDS_JAVA_HEAP_RETURN;
-  bool  map_heap_regions(ArchiveHeapRegionsData *regions_data, bool is_open_archive) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  bool  map_heap_regions(ArchiveHeapRegionsData* regions_data, bool is_open_archive) NOT_CDS_JAVA_HEAP_RETURN_(false);
   MapArchiveResult map_region(int i, intx addr_delta, char* mapped_base_address, ReservedSpace rs);
   bool  relocate_pointers_in_core_regions(intx addr_delta);
   static size_t set_oopmaps_offset(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_size);
@@ -600,7 +600,7 @@ public:
   }
 
   void init_archive_heap_data(int first_region_idx, int last_region_dex, ArchiveHeapRegionsData** heap_regions_data) NOT_CDS_JAVA_HEAP_RETURN;
-  bool get_heap_range_for_archive_regions(ArchiveHeapRegionsData *regions_data, bool is_open) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  bool get_heap_range_for_archive_regions(ArchiveHeapRegionsData* regions_data, bool is_open) NOT_CDS_JAVA_HEAP_RETURN_(false);
 
 public:
   // The starting address of spc, as calculated with HeapShared::decode_from_archive()
@@ -609,8 +609,8 @@ public:
   }
 
   ptrdiff_t get_runtime_delta(intptr_t dumptime_oop, bool in_open_region);
-  ArchiveOopDecoder* get_oop_decoder();
-  void complete_heap_regions_mapping();
+  ArchiveOopDecoder* get_oop_decoder() NOT_CDS_JAVA_HEAP_RETURN_(NULL);
+  void complete_heap_regions_mapping() NOT_CDS_JAVA_HEAP_RETURN;
 
 private:
 

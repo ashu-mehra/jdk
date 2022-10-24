@@ -88,7 +88,6 @@ private:
 
 public:
   ArchiveHeapRegionsData(int max_count);
-
   ~ArchiveHeapRegionsData();
 
   void set_dumptime_region(int index, MemRegion region) { _dumptime_regions[index] = region; }
