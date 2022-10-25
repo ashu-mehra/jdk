@@ -874,7 +874,7 @@ void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion* ranges, size_
   }
 }
 
-void G1CollectedHeap::dealloc_archive_regions(MemRegion* ranges, int num_regions) {
+bool G1CollectedHeap::dealloc_archive_regions_impl(MemRegion* ranges, int num_regions) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(ranges != NULL, "MemRegion array NULL");
   assert(num_regions != 0, "No MemRegions provided");
@@ -944,6 +944,7 @@ void G1CollectedHeap::dealloc_archive_regions(MemRegion* ranges, int num_regions
     uncommit_regions(shrink_count);
   }
   decrease_used(size_used);
+  return true;
 }
 
 HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size) {

@@ -48,8 +48,11 @@ private:
   int64_t _decay_time_ns;
   volatile size_t _last_counter_update;
   volatile size_t _last_heap_print;
-  MemRegion* _archive_regions;
-  int _archive_regions_count;
+
+  MemRegion* _archive_open_regions;
+  int _archive_open_regions_count;
+  MemRegion* _archive_closed_regions;
+  int _archive_closed_regions_count;
 
 public:
   static EpsilonHeap* heap();
@@ -142,7 +145,6 @@ public:
   virtual HeapWord* allocate_loaded_archive_space(size_t size);
 
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
-  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
 
   virtual HeapWord* heap_start() { return _space->bottom(); }
   virtual HeapWord* max_heap_end() { return (HeapWord*)((uintptr_t)_space->bottom() + max_capacity()); }

@@ -2241,14 +2241,15 @@ void FileMapInfo::map_heap_regions_impl() {
     }
   }
 
-  // Map the closed heap regions: GC does not write into these regions.
+  // Map the heap regions
+  // closed regions: GC does not write into these regions.
+  // open regions: GC can write into these regions.
   if (map_heap_regions(_closed_regions_data, false)) {
     ArchiveHeapLoader::set_closed_regions_mapped();
-    // Now, map the open heap regions: GC can write into these regions.
+    _closed_regions_data->set_state(ArchiveHeapRegionsData::MAPPED);
     if (map_heap_regions(_open_regions_data, true)) {
+      _open_regions_data->set_state(ArchiveHeapRegionsData::MAPPED);
       ArchiveHeapLoader::set_open_regions_mapped();
-    } else {
-      _heap_pointers_need_patching = false;
     }
   } else {
     _heap_pointers_need_patching = false;
@@ -2267,7 +2268,11 @@ bool FileMapInfo::map_heap_regions(ArchiveHeapRegionsData *regions_data, bool is
                                 si->allow_exec());
     if (base == NULL || base != addr) {
       // dealloc the regions from java heap
-      dealloc_heap_regions(regions, num_regions);
+      if (dealloc_heap_regions(regions_data)) {
+        regions_data->set_state(ArchiveHeapRegionsData::MAPPING_FAILED_DEALLOCATED);
+      } else {
+        regions_data->set_state(ArchiveHeapRegionsData::MAPPING_FAILED);
+      }
       log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
                     INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
                     p2i(addr), regions[i].byte_size());
@@ -2276,7 +2281,11 @@ bool FileMapInfo::map_heap_regions(ArchiveHeapRegionsData *regions_data, bool is
 
     if (VerifySharedSpaces && !region_crc_check(addr, regions[i].byte_size(), si->crc())) {
       // dealloc the regions from java heap
-      dealloc_heap_regions(regions, num_regions);
+      if (dealloc_heap_regions(regions_data)) {
+        regions_data->set_state(ArchiveHeapRegionsData::MAPPING_FAILED_DEALLOCATED);
+      } else {
+        regions_data->set_state(ArchiveHeapRegionsData::MAPPING_FAILED);
+      }
       log_info(cds)("UseSharedSpaces: mapped heap regions are corrupt");
       return false;
     }
@@ -2286,13 +2295,11 @@ bool FileMapInfo::map_heap_regions(ArchiveHeapRegionsData *regions_data, bool is
 }
 
 void FileMapInfo::complete_heap_regions_mapping() {
-  if (has_heap_regions()) {
-    if (ArchiveHeapLoader::closed_regions_mapped()) {
-      Universe::heap()->complete_archive_regions_alloc(_closed_regions_data->runtime_regions(), _closed_regions_data->num_regions());
-    }
-    if (ArchiveHeapLoader::open_regions_mapped()) {
-      Universe::heap()->complete_archive_regions_alloc(_open_regions_data->runtime_regions(), _open_regions_data->num_regions());
-    }
+  if (ArchiveHeapLoader::closed_regions_mapped()) {
+    Universe::heap()->complete_archive_regions_alloc(_closed_regions_data->runtime_regions(), _closed_regions_data->num_regions());
+  }
+  if (ArchiveHeapLoader::open_regions_mapped()) {
+    Universe::heap()->complete_archive_regions_alloc(_open_regions_data->runtime_regions(), _open_regions_data->num_regions());
   }
 }
 
@@ -2590,7 +2597,7 @@ class PatchEmbeddedPointers: public BitMapClosure {
 };
 
 ArchiveOopDecoder* FileMapInfo::get_oop_decoder() {
-  if (ArchiveHeapLoader::can_map() && !_oop_decoder) {
+  if (ArchiveHeapLoader::is_fully_available() && !_oop_decoder) {
     if (UseCompressedOops) {
       _oop_decoder = new ArchiveNarrowOopDecoder(_closed_regions_data, _open_regions_data, narrow_oop_base(), narrow_oop_shift());
     } else {
@@ -2692,12 +2699,20 @@ void FileMapInfo::fixup_mapped_heap_regions() {
   }
 }
 
-// dealloc the archive regions from java heap
-void FileMapInfo::dealloc_heap_regions(MemRegion* regions, int num) {
-  if (num > 0) {
-    assert(regions != NULL, "Null archive regions array with non-zero count");
-    Universe::heap()->dealloc_archive_regions(regions, num);
+void FileMapInfo::fill_failed_mapped_regions() {
+  if (_closed_regions_data->is_mapping_failed()) {
+    Universe::heap()->fill_heap_regions(_closed_regions_data->runtime_regions(), _closed_regions_data->num_regions());
+    // in map_heap_regions_impl() if we fail to map closed archive regions, we wouldn't attempt to map open archive region
+    // and therefore should fill the heap area for open archive regions with dummy objects as well
+    Universe::heap()->fill_heap_regions(_open_regions_data->runtime_regions(), _open_regions_data->num_regions());
+  } else if (_open_regions_data->is_mapping_failed()) {
+    Universe::heap()->fill_heap_regions(_open_regions_data->runtime_regions(), _open_regions_data->num_regions());
   }
+}
+
+// dealloc the archive regions from java heap
+bool FileMapInfo::dealloc_heap_regions(ArchiveHeapRegionsData* regions_data) {
+  return Universe::heap()->dealloc_archive_regions(regions_data->runtime_regions(), regions_data->num_regions());
 }
 #endif // INCLUDE_CDS_JAVA_HEAP
 
@@ -2953,35 +2968,6 @@ bool FileMapInfo::is_in_shared_region(const void* p, int idx) {
     return true;
   }
   return false;
-}
-
-// Unmap mapped regions of shared space.
-void FileMapInfo::stop_sharing_and_unmap(const char* msg) {
-  MetaspaceShared::set_shared_metaspace_range(NULL, NULL, NULL);
-
-  FileMapInfo *map_info = FileMapInfo::current_info();
-  if (map_info) {
-    map_info->fail_continue("%s", msg);
-    for (int i = 0; i < MetaspaceShared::num_non_heap_regions; i++) {
-      if (!HeapShared::is_heap_region(i)) {
-        map_info->unmap_region(i);
-      }
-    }
-    // Dealloc the archive heap regions only without unmapping. The regions are part
-    // of the java heap. Unmapping of the heap regions are managed by GC.
-#if 0
-    map_info->dealloc_heap_regions(open_heap_regions,
-                                   num_open_heap_regions);
-    map_info->dealloc_heap_regions(closed_heap_regions,
-                                   num_closed_heap_regions);
-#endif
-    map_info->dealloc_heap_regions(map_info->_open_regions_data->runtime_regions(),
-                                   map_info->_open_regions_data->num_regions());
-    map_info->dealloc_heap_regions(map_info->_closed_regions_data->runtime_regions(),
-                                   map_info->_closed_regions_data->num_regions());
-  } else if (DumpSharedSpaces) {
-    fail_stop("%s", msg);
-  }
 }
 
 #if INCLUDE_JVMTI

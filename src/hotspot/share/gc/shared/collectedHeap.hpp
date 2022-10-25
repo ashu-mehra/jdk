@@ -520,7 +520,10 @@ class CollectedHeap : public CHeapObj<mtGC> {
 
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) { return false; }
   virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions) { return; }
-  virtual void dealloc_archive_regions(MemRegion* range, int num_regions) { return; }
+  bool dealloc_archive_regions(MemRegion* range, int num_regions);
+  virtual bool dealloc_archive_regions_impl(MemRegion* range, int num_regions) { return false; }
+  virtual bool heap_region_dealloc_supported() { return false; }
+  virtual void fill_heap_regions(MemRegion* range, int num_regions);
   virtual HeapWord* heap_start() { return NULL; }
   virtual HeapWord* max_heap_end() { return NULL; }
 

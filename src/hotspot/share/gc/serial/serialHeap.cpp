@@ -152,8 +152,13 @@ bool SerialHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regi
     assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
     curr_range->set_end(curr_range->start() + word_size);
   }
-  _archive_regions = runtime_regions;
-  _archive_regions_count = num_regions;
+  if (is_open) {
+    _archive_open_regions = runtime_regions;
+    _archive_open_regions_count = num_regions;
+  } else {
+    _archive_closed_regions = runtime_regions;
+    _archive_closed_regions_count = num_regions;
+  }
   return true;
 }
 
@@ -163,16 +168,14 @@ void SerialHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regi
   }
 }
 
-void SerialHeap::dealloc_archive_regions(MemRegion* range, int num_regions) {
-  // Cannot dealloc a region. Instead, just fill the region with dummy objects
-  for (int i = 0; i < num_regions; i++) {
-    CollectedHeap::fill_with_objects(range[i].start(), range[i].word_size());
-  }
-}
-
 bool SerialHeap::is_archived_object(oop object) const {
-  for(int i = 0; i < _archive_regions_count; i++) {
-    if (_archive_regions[i].contains((void *)object)) {
+  for(int i = 0; i < _archive_closed_regions_count; i++) {
+    if (_archive_closed_regions[i].contains((void *)object)) {
+      return true;
+    }
+  }
+  for(int i = 0; i < _archive_open_regions_count; i++) {
+    if (_archive_open_regions[i].contains((void *)object)) {
       return true;
     }
   }

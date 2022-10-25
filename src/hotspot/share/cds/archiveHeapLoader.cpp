@@ -74,6 +74,9 @@ void ArchiveHeapLoader::fixup_regions() {
     mapinfo->fixup_mapped_heap_regions();
   } else
 #endif
+  if (can_map()) {
+    mapinfo->fill_failed_mapped_regions();
+  }
   if (_loading_failed) {
     fill_failed_loaded_region();
   }

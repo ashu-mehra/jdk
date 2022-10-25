@@ -495,9 +495,6 @@ public:
   }
   bool is_in_shared_region(const void* p, int idx) NOT_CDS_RETURN_(false);
 
-  // Stop CDS sharing and unmap CDS regions.
-  static void stop_sharing_and_unmap(const char* msg);
-
   static void allocate_shared_path_table(TRAPS);
   static void copy_shared_path_table(ClassLoaderData* loader_data, TRAPS);
   static void clone_shared_path_table(TRAPS);
@@ -578,7 +575,7 @@ public:
                          MemRegion** regions_ret, int* num_regions_ret) NOT_CDS_JAVA_HEAP_RETURN_(false);
 #endif
   bool  region_crc_check(char* buf, size_t size, int expected_crc) NOT_CDS_RETURN_(false);
-  void  dealloc_heap_regions(MemRegion* regions, int num) NOT_CDS_JAVA_HEAP_RETURN;
+  bool  dealloc_heap_regions(ArchiveHeapRegionsData* regions_data) NOT_CDS_JAVA_HEAP_RETURN_(false);
   bool  can_use_heap_regions();
   bool  load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
   bool  map_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
@@ -611,6 +608,7 @@ public:
   ptrdiff_t get_runtime_delta(intptr_t dumptime_oop, bool in_open_region);
   ArchiveOopDecoder* get_oop_decoder() NOT_CDS_JAVA_HEAP_RETURN_(NULL);
   void complete_heap_regions_mapping() NOT_CDS_JAVA_HEAP_RETURN;
+  void fill_failed_mapped_regions() NOT_CDS_JAVA_HEAP_RETURN;
 
 private:
 

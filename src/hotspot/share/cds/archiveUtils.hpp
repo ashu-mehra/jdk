@@ -80,16 +80,27 @@ public:
 };
 
 class ArchiveHeapRegionsData : public CHeapObj<mtInternal> {
+public:
+  enum State {
+    UNMAPPED,
+    MAPPED,
+    MAPPING_FAILED,
+    MAPPING_FAILED_DEALLOCATED,
+  };
+
 private:
   MemRegion *_dumptime_regions;
   MemRegion *_runtime_regions;
   int *_region_idx;
   int _num_regions;
+  State _state;
 
 public:
   ArchiveHeapRegionsData(int max_count);
   ~ArchiveHeapRegionsData();
 
+  void set_state(State state) { _state = state; }
+  bool is_mapping_failed() { return _state == MAPPING_FAILED; }
   void set_dumptime_region(int index, MemRegion region) { _dumptime_regions[index] = region; }
   void set_runtime_region(int index, MemRegion region) { _runtime_regions[index] = region; }
   void set_region_index(int index, int region_index) { _region_idx[index] = region_index; }

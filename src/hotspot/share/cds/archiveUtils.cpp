@@ -152,6 +152,7 @@ ArchiveHeapRegionsData::ArchiveHeapRegionsData(int max_count) {
   _runtime_regions = MemRegion::create_array(max_count, mtInternal);
   _region_idx = (int *)os::malloc(sizeof(int)*max_count, mtInternal);
   _num_regions = max_count;
+  _state = ArchiveHeapRegionsData::UNMAPPED;
 }
 
 ArchiveHeapRegionsData::~ArchiveHeapRegionsData() {

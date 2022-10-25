@@ -61,8 +61,10 @@ private:
   MemoryPool* _survivor_pool;
   MemoryPool* _old_pool;
 
-  MemRegion* _archive_regions;
-  int _archive_regions_count;
+  MemRegion* _archive_open_regions;
+  int _archive_open_regions_count;
+  MemRegion* _archive_closed_regions;
+  int _archive_closed_regions_count;
 
   virtual void initialize_serviceability();
 
@@ -116,7 +118,6 @@ public:
 
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
   virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions);
-  virtual void dealloc_archive_regions(MemRegion* range, int num_regions);
 };
 
 #endif // SHARE_GC_SERIAL_SERIALHEAP_HPP

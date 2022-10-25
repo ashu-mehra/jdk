@@ -734,7 +734,9 @@ public:
   // which had been allocated by alloc_archive_regions. This should be called
   // rather than fill_archive_regions at JVM init time if the archive file
   // mapping failed, with the same non-overlapping and sorted MemRegion array.
-  virtual void dealloc_archive_regions(MemRegion* range, int num_regions) override;
+  bool dealloc_archive_regions_impl(MemRegion* range, int num_regions) override;
+
+  virtual bool heap_region_dealloc_supported() override { return true; }
 
 private:
 
