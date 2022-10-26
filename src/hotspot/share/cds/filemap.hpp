@@ -25,10 +25,12 @@
 #ifndef SHARE_CDS_FILEMAP_HPP
 #define SHARE_CDS_FILEMAP_HPP
 
+#include "cds/archiveUtils.hpp"
 #include "cds/metaspaceShared.hpp"
 #include "include/cds.h"
 #include "oops/array.hpp"
 #include "oops/compressedOops.hpp"
+#include "oops/compressedOops.inline.hpp"
 #include "utilities/align.hpp"
 
 // To understand the layout of the CDS archive file:
@@ -39,7 +41,7 @@
 
 static const int JVM_IDENT_MAX = 256;
 
-class ArchiveHeapRegionsData;
+class ArchiveHeapRegions;
 class ArchiveOopDecoder;
 class CHeapBitMap;
 class ClassFileStream;
@@ -338,8 +340,8 @@ private:
   FileMapHeader* _header;
 
   ArchiveOopDecoder* _oop_decoder;
-  ArchiveHeapRegionsData* _closed_regions_data;
-  ArchiveHeapRegionsData* _open_regions_data;
+  ArchiveHeapRegions* _closed_heap_regions;
+  ArchiveHeapRegions* _open_heap_regions;
 
   // TODO: Probably change the following to be non-static
   static SharedPathTable       _shared_path_table;
@@ -462,18 +464,16 @@ public:
   MapArchiveResult map_regions(int regions[], int num_regions, char* mapped_base_address, ReservedSpace rs);
   void  unmap_regions(int regions[], int num_regions);
   void  map_or_load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN;
-  void  fixup_mapped_heap_regions() NOT_CDS_JAVA_HEAP_RETURN;
   void  patch_embedded_pointers(MemRegion region, address oopmap,
                                                 size_t oopmap_size_in_bits, bool is_open_region) NOT_CDS_JAVA_HEAP_RETURN;
   void  patch_heap_embedded_pointers() NOT_CDS_JAVA_HEAP_RETURN;
-  void  patch_heap_embedded_pointers(ArchiveHeapRegionsData* regions_data, bool is_open_region) NOT_CDS_JAVA_HEAP_RETURN;
+  void  patch_heap_embedded_pointers(ArchiveHeapRegions* regions_data, bool is_open_region) NOT_CDS_JAVA_HEAP_RETURN;
 #if 0
   void  patch_heap_embedded_pointers(MemRegion* regions, int num_regions,
                                      int first_region_idx) NOT_CDS_JAVA_HEAP_RETURN;
 #endif
   bool  has_heap_regions()  NOT_CDS_JAVA_HEAP_RETURN_(false);
   MemRegion get_archive_regions_range() NOT_CDS_JAVA_HEAP_RETURN_(MemRegion());
-  MemRegion get_heap_regions_range_with_current_oop_encoding_mode() NOT_CDS_JAVA_HEAP_RETURN_(MemRegion());
   bool  read_region(int i, char* base, size_t size, bool do_commit);
   char* map_bitmap_region();
   void  unmap_region(int i);
@@ -493,7 +493,6 @@ public:
     CDS_ONLY(return _memory_mapping_failed;)
     NOT_CDS(return false;)
   }
-  bool is_in_shared_region(const void* p, int idx) NOT_CDS_RETURN_(false);
 
   static void allocate_shared_path_table(TRAPS);
   static void copy_shared_path_table(ClassLoaderData* loader_data, TRAPS);
@@ -575,41 +574,63 @@ public:
                          MemRegion** regions_ret, int* num_regions_ret) NOT_CDS_JAVA_HEAP_RETURN_(false);
 #endif
   bool  region_crc_check(char* buf, size_t size, int expected_crc) NOT_CDS_RETURN_(false);
-  bool  dealloc_heap_regions(ArchiveHeapRegionsData* regions_data) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  bool  dealloc_heap_regions(ArchiveHeapRegions* regions_data) NOT_CDS_JAVA_HEAP_RETURN_(false);
   bool  can_use_heap_regions();
   bool  load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
   bool  map_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
   address heap_region_dumptime_start_address(FileMapRegion* spc) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
   address heap_region_runtime_start_address(FileMapRegion* spc) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
-  void set_shared_heap_runtime_delta(ptrdiff_t delta) NOT_CDS_JAVA_HEAP_RETURN;
   void  map_heap_regions_impl() NOT_CDS_JAVA_HEAP_RETURN;
-  bool  map_heap_regions(ArchiveHeapRegionsData* regions_data, bool is_open_archive) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  bool  map_heap_regions(ArchiveHeapRegions* regions_data, bool is_open_archive) NOT_CDS_JAVA_HEAP_RETURN_(false);
   MapArchiveResult map_region(int i, intx addr_delta, char* mapped_base_address, ReservedSpace rs);
   bool  relocate_pointers_in_core_regions(intx addr_delta);
   static size_t set_oopmaps_offset(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_size);
   static size_t write_oopmaps(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_offset, char* buffer);
 
-  address decode_start_address(FileMapRegion* spc, bool with_current_oop_encoding_mode);
-
-  // The starting address of spc, as calculated with CompressedOop::decode_non_null()
-  address start_address_as_decoded_with_current_oop_encoding_mode(FileMapRegion* spc) {
-    return decode_start_address(spc, true);
-  }
-
-  void init_archive_heap_data(int first_region_idx, int last_region_dex, ArchiveHeapRegionsData** heap_regions_data) NOT_CDS_JAVA_HEAP_RETURN;
-  bool get_heap_range_for_archive_regions(ArchiveHeapRegionsData* regions_data, bool is_open) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  void init_archive_heap_data(int first_region_idx, int last_region_dex, ArchiveHeapRegions** heap_regions_data) NOT_CDS_JAVA_HEAP_RETURN;
+  bool get_heap_range_for_archive_regions(ArchiveHeapRegions* regions_data, bool is_open) NOT_CDS_JAVA_HEAP_RETURN_(false);
 
 public:
-  // The starting address of spc, as calculated with HeapShared::decode_from_archive()
-  address start_address_as_decoded_from_archive(FileMapRegion* spc) {
-    return decode_start_address(spc, false);
+  address start_address_at_dumptime(FileMapRegion* spc) {
+    if (UseCompressedOops) {
+      size_t offset = spc->mapping_offset();
+      narrowOop n = CompressedOops::narrow_oop_cast(offset);
+      uintptr_t p = ((uintptr_t)narrow_oop_base()) + ((uintptr_t)n << narrow_oop_shift());
+      return (address)p;
+    } else {
+      assert(is_aligned(spc->mapping_offset(), sizeof(HeapWord)), "must be");
+      return header()->heap_begin() + spc->mapping_offset();
+    }
   }
 
-  ptrdiff_t get_runtime_delta(intptr_t dumptime_oop, bool in_open_region);
   ArchiveOopDecoder* get_oop_decoder() NOT_CDS_JAVA_HEAP_RETURN_(NULL);
   void complete_heap_regions_mapping() NOT_CDS_JAVA_HEAP_RETURN;
   void fill_failed_mapped_regions() NOT_CDS_JAVA_HEAP_RETURN;
 
+  static bool closed_regions_mapped() {
+    CDS_JAVA_HEAP_ONLY(return _current_info != NULL &&
+                       _current_info->_closed_heap_regions != NULL &&
+                       _current_info->_closed_heap_regions->is_mapped();)
+    NOT_CDS_JAVA_HEAP_RETURN_(false);
+  }
+  static bool open_regions_mapped() {
+    CDS_JAVA_HEAP_ONLY(return _current_info != NULL &&
+                              _current_info->_open_heap_regions != NULL &&
+                              _current_info->_open_heap_regions->is_mapped();)
+    NOT_CDS_JAVA_HEAP_RETURN_(false);
+  }
+
+  static bool is_archived_heap_available() {
+    return closed_regions_mapped() && open_regions_mapped();
+  }
+
+  static bool are_archived_strings_available() {
+    return closed_regions_mapped();
+  }
+
+  static bool are_archived_mirrors_available() {
+    return is_archived_heap_available();
+  }
 private:
 
 #if INCLUDE_JVMTI

@@ -705,6 +705,7 @@ public:
 
   virtual HeapWord* heap_start() override;
   virtual HeapWord* max_heap_end() override;
+  virtual bool are_archive_regions_pinned() override { return true; }
 
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) override;
   virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions) override;

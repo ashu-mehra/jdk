@@ -526,6 +526,7 @@ class CollectedHeap : public CHeapObj<mtGC> {
   virtual void fill_heap_regions(MemRegion* range, int num_regions);
   virtual HeapWord* heap_start() { return NULL; }
   virtual HeapWord* max_heap_end() { return NULL; }
+  virtual bool are_archive_regions_pinned() { return false; }
 
   virtual bool is_oop(oop object) const;
   // Non product verification and debugging.

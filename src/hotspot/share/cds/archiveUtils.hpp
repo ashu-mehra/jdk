@@ -79,7 +79,7 @@ public:
   }
 };
 
-class ArchiveHeapRegionsData : public CHeapObj<mtInternal> {
+class ArchiveHeapRegions : public CHeapObj<mtInternal> {
 public:
   enum State {
     UNMAPPED,
@@ -96,10 +96,11 @@ private:
   State _state;
 
 public:
-  ArchiveHeapRegionsData(int max_count);
-  ~ArchiveHeapRegionsData();
+  ArchiveHeapRegions(int max_count);
+  ~ArchiveHeapRegions();
 
   void set_state(State state) { _state = state; }
+  bool is_mapped() { return _state == MAPPED; }
   bool is_mapping_failed() { return _state == MAPPING_FAILED; }
   void set_dumptime_region(int index, MemRegion region) { _dumptime_regions[index] = region; }
   void set_runtime_region(int index, MemRegion region) { _runtime_regions[index] = region; }
@@ -269,13 +270,13 @@ public:
 
 class ArchiveNarrowOopDecoder : public ArchiveOopDecoder {
 private:
-  ArchiveHeapRegionsData* _closed_regions;
-  ArchiveHeapRegionsData* _open_regions;
+  ArchiveHeapRegions* _closed_regions;
+  ArchiveHeapRegions* _open_regions;
   address _narrow_oop_base;
   int _narrow_oop_shift;
 
 public:
-  ArchiveNarrowOopDecoder(ArchiveHeapRegionsData* closed_regions, ArchiveHeapRegionsData* open_regions,
+  ArchiveNarrowOopDecoder(ArchiveHeapRegions* closed_regions, ArchiveHeapRegions* open_regions,
                     address narrow_oop_base, int narrow_oop_shift):
     _closed_regions(closed_regions),
     _open_regions(open_regions),
@@ -288,11 +289,11 @@ public:
 
 class ArchiveWideOopDecoder : public ArchiveOopDecoder {
 private:
-  ArchiveHeapRegionsData* _closed_regions;
-  ArchiveHeapRegionsData* _open_regions;
+  ArchiveHeapRegions* _closed_regions;
+  ArchiveHeapRegions* _open_regions;
 
 public:
-  ArchiveWideOopDecoder(ArchiveHeapRegionsData* closed_regions, ArchiveHeapRegionsData* open_regions) :
+  ArchiveWideOopDecoder(ArchiveHeapRegions* closed_regions, ArchiveHeapRegions* open_regions) :
     _closed_regions(closed_regions),
     _open_regions(open_regions)
   {}

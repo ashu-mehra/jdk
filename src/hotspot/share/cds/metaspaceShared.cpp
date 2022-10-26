@@ -929,11 +929,6 @@ void MetaspaceShared::set_shared_metaspace_range(void* base, void *static_top, v
   MetaspaceObj::set_shared_metaspace_range(base, top);
 }
 
-// Return true if given address is in the misc data region
-bool MetaspaceShared::is_in_shared_region(const void* p, int idx) {
-  return UseSharedSpaces && FileMapInfo::current_info()->is_in_shared_region(p, idx);
-}
-
 bool MetaspaceShared::is_shared_dynamic(void* p) {
   if ((p < MetaspaceObj::shared_metaspace_top()) &&
       (p >= _shared_metaspace_static_top)) {
@@ -1472,7 +1467,6 @@ void MetaspaceShared::initialize_shared_spaces() {
   // done after ReadClosure.
   static_mapinfo->patch_heap_embedded_pointers();
   static_mapinfo->complete_heap_regions_mapping();
-  ArchiveHeapLoader::finish_initialization();
 
   // Close the mapinfo file
   static_mapinfo->close();

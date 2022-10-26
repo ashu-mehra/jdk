@@ -147,15 +147,15 @@ void ArchivePtrMarker::compact(size_t max_non_null_offset) {
   _compacted = true;
 }
 
-ArchiveHeapRegionsData::ArchiveHeapRegionsData(int max_count) {
+ArchiveHeapRegions::ArchiveHeapRegions(int max_count) {
   _dumptime_regions = MemRegion::create_array(max_count, mtInternal);
   _runtime_regions = MemRegion::create_array(max_count, mtInternal);
   _region_idx = (int *)os::malloc(sizeof(int)*max_count, mtInternal);
   _num_regions = max_count;
-  _state = ArchiveHeapRegionsData::UNMAPPED;
+  _state = ArchiveHeapRegions::UNMAPPED;
 }
 
-ArchiveHeapRegionsData::~ArchiveHeapRegionsData() {
+ArchiveHeapRegions::~ArchiveHeapRegions() {
   if (_dumptime_regions) {
     MemRegion::destroy_array(_dumptime_regions, _num_regions);
   }
@@ -311,14 +311,16 @@ oop ArchiveNarrowOopDecoder::decode(uintptr_t ptr) {
   narrowOop o = CompressedOops::narrow_oop_cast(ptr);
   if (CompressedOops::is_null(o)) {
     return NULL;
-  } else {
-    uintptr_t p = (uintptr_t)_narrow_oop_base + (ptr << _narrow_oop_shift);
-    uintptr_t result = _closed_regions->dumptime_to_runtime(p);
-    if (!result) {
-      result = _open_regions->dumptime_to_runtime(p);
-    }
-    return cast_to_oop(result);
   }
+  uintptr_t p = (uintptr_t)_narrow_oop_base + (ptr << _narrow_oop_shift);
+  uintptr_t result = _closed_regions->dumptime_to_runtime(p);
+  if (!result) {
+    // if ptr is not found in closed heap region, it should be present in open heap region
+    assert(_open_regions->is_mapped(), "open heap region should be mapped");
+    result = _open_regions->dumptime_to_runtime(p);
+  }
+  assert(result != 0, "decoded oop cannot be null");
+  return cast_to_oop(result);
 }
 
 oop ArchiveWideOopDecoder::decode(uintptr_t ptr) {
@@ -327,8 +329,11 @@ oop ArchiveWideOopDecoder::decode(uintptr_t ptr) {
   }
   uintptr_t result = _closed_regions->dumptime_to_runtime(ptr);
   if (!result) {
+    // if ptr is not found in closed heap region, it should be present in open heap region
+    assert(_open_regions->is_mapped(), "open heap region should be mapped");
     result = _open_regions->dumptime_to_runtime(ptr);
   }
+  assert(result != 0, "decoded oop cannot be null");
   return cast_to_oop(result);
 }
 
@@ -359,27 +364,11 @@ void ReadClosure::do_tag(int tag) {
 }
 
 void ReadClosure::do_oop(oop *p) {
+  uintptr_t ptr = nextPtr();
   if (_oop_decoder) {
-    *p = _oop_decoder->decode(nextPtr());
+    *p = _oop_decoder->decode(ptr);
   } else {
-    if (UseCompressedOops) {
-      narrowOop o = CompressedOops::narrow_oop_cast(nextPtr());
-      if (CompressedOops::is_null(o) || !ArchiveHeapLoader::is_fully_available()) {
-        *p = NULL;
-      } else {
-        assert(ArchiveHeapLoader::can_use(), "sanity");
-        assert(ArchiveHeapLoader::is_fully_available(), "must be");
-        *p = ArchiveHeapLoader::decode_from_archive(o);
-      }
-    } else {
-      intptr_t dumptime_oop = nextPtr();
-      if (dumptime_oop == 0 || !ArchiveHeapLoader::is_fully_available()) {
-        *p = NULL;
-      } else {
-        intptr_t runtime_oop = dumptime_oop + ArchiveHeapLoader::runtime_delta();
-        *p = cast_to_oop(runtime_oop);
-      }
-    }
+    *p = NULL;
   }
 }
 

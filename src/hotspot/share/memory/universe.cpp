@@ -452,7 +452,7 @@ void Universe::genesis(TRAPS) {
 void Universe::initialize_basic_type_mirrors(TRAPS) {
 #if INCLUDE_CDS_JAVA_HEAP
     if (UseSharedSpaces &&
-        ArchiveHeapLoader::are_archived_mirrors_available() &&
+        FileMapInfo::are_archived_mirrors_available() &&
         _mirrors[T_INT].resolve() != NULL) {
       assert(ArchiveHeapLoader::can_use(), "Sanity");
 
@@ -807,7 +807,7 @@ jint universe_init() {
     // currently mapped regions.
     MetaspaceShared::initialize_shared_spaces();
     StringTable::create_table();
-    if (ArchiveHeapLoader::is_loaded()) {
+    if (!Universe::heap()->are_archive_regions_pinned()) {
       StringTable::transfer_shared_strings_to_local_table();
     }
   } else
