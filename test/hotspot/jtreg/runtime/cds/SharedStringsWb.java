@@ -34,6 +34,11 @@ public class SharedStringsWb {
             return;
         }
 
+        if (!wb.areSharedStringsPinned()) {
+            System.out.println("Shared strings are not pinned, may move around making strings non-shareable, assuming PASS");
+            return;
+        }
+
         // The string below is known to be added to CDS archive
         String s = "<init>";
         String internedS = s.intern();

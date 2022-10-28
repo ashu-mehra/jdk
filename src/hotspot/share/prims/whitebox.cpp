@@ -1996,6 +1996,10 @@ WB_ENTRY(jboolean, WB_AreSharedStringsMapped(JNIEnv* env))
   return FileMapInfo::closed_regions_mapped();
 WB_END
 
+WB_ENTRY(jboolean, WB_AreSharedStringsPinned(JNIEnv* env))
+  return Universe::heap()->are_archive_regions_pinned();
+WB_END
+
 WB_ENTRY(jobject, WB_GetResolvedReferences(JNIEnv* env, jobject wb, jclass clazz))
   Klass *k = java_lang_Class::as_Klass(JNIHandles::resolve_non_null(clazz));
   if (k->is_instance_klass()) {
@@ -2708,6 +2712,7 @@ static JNINativeMethod methods[] = {
   {CC"isSharedInternedString", CC"(Ljava/lang/String;)Z", (void*)&WB_IsSharedInternedString },
   {CC"isSharedClass",      CC"(Ljava/lang/Class;)Z",  (void*)&WB_IsSharedClass },
   {CC"areSharedStringsMapped",            CC"()Z",    (void*)&WB_AreSharedStringsMapped },
+  {CC"areSharedStringsPinned",            CC"()Z",    (void*)&WB_AreSharedStringsPinned },
   {CC"getResolvedReferences", CC"(Ljava/lang/Class;)Ljava/lang/Object;", (void*)&WB_GetResolvedReferences},
   {CC"linkClass",          CC"(Ljava/lang/Class;)V",  (void*)&WB_LinkClass},
   {CC"areOpenArchiveHeapObjectsMapped",   CC"()Z",    (void*)&WB_AreOpenArchiveHeapObjectsMapped},
