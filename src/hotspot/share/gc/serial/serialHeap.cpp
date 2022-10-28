@@ -114,16 +114,6 @@ void SerialHeap::safepoint_synchronize_end() {
   }
 }
 
-HeapWord* SerialHeap::allocate_loaded_archive_space(size_t word_size) {
-  MutexLocker ml(Heap_lock);
-  return old_gen()->allocate(word_size, false /* is_tlab */);
-}
-
-void SerialHeap::complete_loaded_archive_space(MemRegion archive_space) {
-  assert(old_gen()->used_region().contains(archive_space), "Archive space not contained in old gen");
-  old_gen()->complete_loaded_archive_space(archive_space);
-}
-
 bool SerialHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
   size_t total_size = 0;
   size_t alignment = os::vm_page_size();
@@ -164,7 +154,8 @@ bool SerialHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regi
 
 void SerialHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
   for (int i = 0; i < num_regions; i++) {
-    complete_loaded_archive_space(regions[i]);
+    assert(old_gen()->used_region().contains(regions[i]), "Archive space not contained in old gen");
+    old_gen()->complete_archive_region_alloc(regions[i]);
   }
 }
 

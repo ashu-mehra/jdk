@@ -707,6 +707,9 @@ public:
   virtual HeapWord* max_heap_end() override;
   virtual bool are_archive_regions_pinned() override { return true; }
 
+  // Commit the appropriate G1 regions containing the specified MemRegions
+  // and mark them as 'archive' regions. The regions in the array must be
+  // non-overlapping and in order of ascending address.
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) override;
   virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions) override;
 
@@ -717,15 +720,7 @@ public:
   // reserved heap.
   bool check_archive_addresses(MemRegion* range, size_t count);
 
-  // Commit the appropriate G1 regions containing the specified MemRegions
-  // and mark them as 'archive' regions. The regions in the array must be
-  // non-overlapping and in order of ascending address.
   bool alloc_archive_regions(MemRegion* range, size_t count, bool open);
-
-  // Insert any required filler objects in the G1 regions around the specified
-  // ranges to make the regions parseable. This must be called after
-  // alloc_archive_regions, and after class loading has occurred.
-  void fill_archive_regions(MemRegion* range, size_t count);
 
   // Populate the G1BlockOffsetTablePart for archived regions with the given
   // memory ranges.

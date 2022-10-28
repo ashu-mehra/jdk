@@ -484,11 +484,11 @@ void TenuredGeneration::object_iterate(ObjectClosure* blk) {
   _the_space->object_iterate(blk);
 }
 
-void TenuredGeneration::complete_loaded_archive_space(MemRegion archive_space) {
+void TenuredGeneration::complete_archive_region_alloc(MemRegion archive_space) {
   // Create the BOT for the archive space.
   TenuredSpace* space = (TenuredSpace*)_the_space;
   // Thresholds should have already been initialized in the constructor
-  // Moreover complete_loaded_archive_space is called multiple times, so the call
+  // Moreover complete_archive_region_alloc is called multiple times, so the call
   // to space->initialize_threshold() should not be placed here.
   //space->initialize_threshold();
   HeapWord* start = archive_space.start();

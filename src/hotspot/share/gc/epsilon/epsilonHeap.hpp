@@ -141,9 +141,6 @@ public:
   bool is_in_reserved(const void* addr) const { return _reserved.contains(addr); }
 
   // Support for loading objects from CDS archive into the heap
-  virtual bool can_load_archived_objects() const { return UseCompressedOops; }
-  virtual HeapWord* allocate_loaded_archive_space(size_t size);
-
   virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
 
   virtual HeapWord* heap_start() { return _space->bottom(); }

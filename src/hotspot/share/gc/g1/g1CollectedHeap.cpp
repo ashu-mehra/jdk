@@ -526,16 +526,6 @@ HeapWord* G1CollectedHeap::archive_mem_allocate(size_t word_size) {
   return _archive_allocator->archive_mem_allocate(word_size);
 }
 
-#if 0
-bool G1CollectedHeap::check_archive_regions_range(MemRegion region) {
-  if ((region.end() - region.start()) > (end() - start())) {
-    return false; // archived regions are larger than heap size
-  }
-
-  return true;
-}
-#endif
-
 HeapWord* G1CollectedHeap::heap_start() {
   if (UseCompressedOops) {
     return (HeapWord *)CompressedOops::begin();
@@ -550,6 +540,30 @@ HeapWord* G1CollectedHeap::max_heap_end() {
   } else {
     return reserved().end();
   }
+}
+
+void G1CollectedHeap::end_archive_alloc_range(GrowableArray<MemRegion>* ranges,
+                                              size_t end_alignment_in_bytes) {
+  assert_at_safepoint_on_vm_thread();
+  assert(_archive_allocator != nullptr, "_archive_allocator not initialized");
+
+  // Call complete_archive to do the real work, filling in the MemRegion
+  // array with the archive regions.
+  _archive_allocator->complete_archive(ranges, end_alignment_in_bytes);
+  delete _archive_allocator;
+  _archive_allocator = nullptr;
+}
+
+bool G1CollectedHeap::check_archive_addresses(MemRegion* ranges, size_t count) {
+  assert(ranges != NULL, "MemRegion array NULL");
+  assert(count != 0, "No MemRegions provided");
+  MemRegion reserved = _hrm.reserved();
+  for (size_t i = 0; i < count; i++) {
+    if (!reserved.contains(ranges[i].start()) || !reserved.contains(ranges[i].last())) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool G1CollectedHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
@@ -640,188 +654,6 @@ bool G1CollectedHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num
 
   increase_used(total_size);
   return true;
-}
-
-void G1CollectedHeap::end_archive_alloc_range(GrowableArray<MemRegion>* ranges,
-                                              size_t end_alignment_in_bytes) {
-  assert_at_safepoint_on_vm_thread();
-  assert(_archive_allocator != nullptr, "_archive_allocator not initialized");
-
-  // Call complete_archive to do the real work, filling in the MemRegion
-  // array with the archive regions.
-  _archive_allocator->complete_archive(ranges, end_alignment_in_bytes);
-  delete _archive_allocator;
-  _archive_allocator = nullptr;
-}
-
-bool G1CollectedHeap::check_archive_addresses(MemRegion* ranges, size_t count) {
-  assert(ranges != NULL, "MemRegion array NULL");
-  assert(count != 0, "No MemRegions provided");
-  MemRegion reserved = _hrm.reserved();
-  for (size_t i = 0; i < count; i++) {
-    if (!reserved.contains(ranges[i].start()) || !reserved.contains(ranges[i].last())) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool G1CollectedHeap::alloc_archive_regions(MemRegion* ranges,
-                                            size_t count,
-                                            bool open) {
-  assert(!is_init_completed(), "Expect to be called at JVM init time");
-  assert(ranges != NULL, "MemRegion array NULL");
-  assert(count != 0, "No MemRegions provided");
-
-  MutexLocker x(Heap_lock);
-
-  MemRegion reserved = _hrm.reserved();
-  HeapWord* prev_last_addr = NULL;
-  HeapRegion* prev_last_region = NULL;
-
-  // Temporarily disable pretouching of heap pages. This interface is used
-  // when mmap'ing archived heap data in, so pre-touching is wasted.
-  FlagSetting fs(AlwaysPreTouch, false);
-
-  // For each specified MemRegion range, allocate the corresponding G1
-  // regions and mark them as archive regions. We expect the ranges
-  // in ascending starting address order, without overlap.
-  for (size_t i = 0; i < count; i++) {
-    MemRegion curr_range = ranges[i];
-    HeapWord* start_address = curr_range.start();
-    size_t word_size = curr_range.word_size();
-    HeapWord* last_address = curr_range.last();
-    size_t commits = 0;
-
-    guarantee(reserved.contains(start_address) && reserved.contains(last_address),
-              "MemRegion outside of heap [" PTR_FORMAT ", " PTR_FORMAT "]",
-              p2i(start_address), p2i(last_address));
-    guarantee(start_address > prev_last_addr,
-              "Ranges not in ascending order: " PTR_FORMAT " <= " PTR_FORMAT ,
-              p2i(start_address), p2i(prev_last_addr));
-    prev_last_addr = last_address;
-
-    // Check for ranges that start in the same G1 region in which the previous
-    // range ended, and adjust the start address so we don't try to allocate
-    // the same region again. If the current range is entirely within that
-    // region, skip it, just adjusting the recorded top.
-    HeapRegion* start_region = _hrm.addr_to_region(start_address);
-    if ((prev_last_region != NULL) && (start_region == prev_last_region)) {
-      start_address = start_region->end();
-      if (start_address > last_address) {
-        increase_used(word_size * HeapWordSize);
-        start_region->set_top(last_address + 1);
-        continue;
-      }
-      start_region->set_top(start_address);
-      curr_range = MemRegion(start_address, last_address + 1);
-      start_region = _hrm.addr_to_region(start_address);
-    }
-
-    // Perform the actual region allocation, exiting if it fails.
-    // Then note how much new space we have allocated.
-    if (!_hrm.allocate_containing_regions(curr_range, &commits, workers())) {
-      return false;
-    }
-    increase_used(word_size * HeapWordSize);
-    if (commits != 0) {
-      log_debug(gc, ergo, heap)("Attempt heap expansion (allocate archive regions). Total size: " SIZE_FORMAT "B",
-                                HeapRegion::GrainWords * HeapWordSize * commits);
-
-    }
-
-    // Mark each G1 region touched by the range as archive, add it to
-    // the old set, and set top.
-    HeapRegion* curr_region = _hrm.addr_to_region(start_address);
-    HeapRegion* last_region = _hrm.addr_to_region(last_address);
-    prev_last_region = last_region;
-
-    while (curr_region != NULL) {
-      assert(curr_region->is_empty() && !curr_region->is_pinned(),
-             "Region already in use (index %u)", curr_region->hrm_index());
-      if (open) {
-        curr_region->set_open_archive();
-      } else {
-        curr_region->set_closed_archive();
-      }
-      _hr_printer.alloc(curr_region);
-      _archive_set.add(curr_region);
-      HeapWord* top;
-      HeapRegion* next_region;
-      if (curr_region != last_region) {
-        top = curr_region->end();
-        next_region = _hrm.next_region_in_heap(curr_region);
-      } else {
-        top = last_address + 1;
-        next_region = NULL;
-      }
-      curr_region->set_top(top);
-      curr_region = next_region;
-    }
-  }
-  return true;
-}
-
-void G1CollectedHeap::fill_archive_regions(MemRegion* ranges, size_t count) {
-  assert(!is_init_completed(), "Expect to be called at JVM init time");
-  assert(ranges != NULL, "MemRegion array NULL");
-  assert(count != 0, "No MemRegions provided");
-  MemRegion reserved = _hrm.reserved();
-  HeapWord *prev_last_addr = NULL;
-  HeapRegion* prev_last_region = NULL;
-
-  // For each MemRegion, create filler objects, if needed, in the G1 regions
-  // that contain the address range. The address range actually within the
-  // MemRegion will not be modified. That is assumed to have been initialized
-  // elsewhere, probably via an mmap of archived heap data.
-  MutexLocker x(Heap_lock);
-  for (size_t i = 0; i < count; i++) {
-    HeapWord* start_address = ranges[i].start();
-    HeapWord* last_address = ranges[i].last();
-
-    assert(reserved.contains(start_address) && reserved.contains(last_address),
-           "MemRegion outside of heap [" PTR_FORMAT ", " PTR_FORMAT "]",
-           p2i(start_address), p2i(last_address));
-    assert(start_address > prev_last_addr,
-           "Ranges not in ascending order: " PTR_FORMAT " <= " PTR_FORMAT ,
-           p2i(start_address), p2i(prev_last_addr));
-
-    HeapRegion* start_region = _hrm.addr_to_region(start_address);
-    HeapRegion* last_region = _hrm.addr_to_region(last_address);
-    HeapWord* bottom_address = start_region->bottom();
-
-    // Check for a range beginning in the same region in which the
-    // previous one ended.
-    if (start_region == prev_last_region) {
-      bottom_address = prev_last_addr + 1;
-    }
-
-    // Verify that the regions were all marked as archive regions by
-    // alloc_archive_regions.
-    HeapRegion* curr_region = start_region;
-    while (curr_region != NULL) {
-      guarantee(curr_region->is_archive(),
-                "Expected archive region at index %u", curr_region->hrm_index());
-      if (curr_region != last_region) {
-        curr_region = _hrm.next_region_in_heap(curr_region);
-      } else {
-        curr_region = NULL;
-      }
-    }
-
-    prev_last_addr = last_address;
-    prev_last_region = last_region;
-
-    // Fill the memory below the allocated range with dummy object(s),
-    // if the region bottom does not match the range start, or if the previous
-    // range ended within the same G1 region, and there is a gap.
-    assert(start_address >= bottom_address, "bottom address should not be greater than start address");
-    if (start_address > bottom_address) {
-      size_t fill_size = pointer_delta(start_address, bottom_address);
-      G1CollectedHeap::fill_with_objects(bottom_address, fill_size);
-      increase_used(fill_size * HeapWordSize);
-    }
-  }
 }
 
 inline HeapWord* G1CollectedHeap::attempt_allocation(size_t min_word_size,

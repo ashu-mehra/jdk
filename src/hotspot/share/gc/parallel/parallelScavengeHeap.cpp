@@ -802,61 +802,6 @@ void ParallelScavengeHeap::resize_old_gen(size_t desired_free_space) {
   _old_gen->resize(desired_free_space);
 }
 
-HeapWord* ParallelScavengeHeap::allocate_loaded_archive_space(size_t size) {
-  return _old_gen->allocate(size);
-}
-
-void ParallelScavengeHeap::complete_loaded_archive_space(MemRegion archive_space) {
-  assert(_old_gen->object_space()->used_region().contains(archive_space),
-         "Archive space not contained in old gen");
-  _old_gen->complete_loaded_archive_space(archive_space);
-}
-
-bool ParallelScavengeHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
-  size_t total_size = 0;
-  size_t alignment = os::vm_page_size();
-
-  for (int i = 0; i < num_regions; i++) {
-    size_t region_size = dumptime_regions[i].byte_size();
-    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
-           "is not aligned to OS default page size", region_size);
-    total_size += region_size;
-  }
-
-  // Cannot use verbose=true because Metaspace is not initialized
-  HeapWord* result = _old_gen->allocate_aligned(total_size / HeapWordSize, alignment);
-  if (result == NULL) {
-    return false;
-  }
-
-  for (int i = 0; i < num_regions; i++) {
-    size_t word_size = dumptime_regions[i].word_size();
-    MemRegion* curr_range = &runtime_regions[i];
-    if (i == 0) {
-      curr_range->set_start(result);
-    } else {
-      // next range should be aligned to page size
-      curr_range->set_start(runtime_regions[i-1].end());
-    }
-    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
-    curr_range->set_end(curr_range->start() + word_size);
-  }
-  if (is_open) {
-    _archive_open_regions = runtime_regions;
-    _archive_open_regions_count = num_regions;
-  } else {
-    _archive_closed_regions = runtime_regions;
-    _archive_closed_regions_count = num_regions;
-  }
-  return true;
-}
-
-void ParallelScavengeHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
-  for (int i = 0; i < num_regions; i++) {
-    _old_gen->complete_archive_regions_alloc(regions[i]);
-  }
-}
-
 #ifndef PRODUCT
 void ParallelScavengeHeap::record_gen_tops_before_GC() {
   if (ZapUnusedHeapArea) {
@@ -904,6 +849,51 @@ GrowableArray<MemoryPool*> ParallelScavengeHeap::memory_pools() {
   memory_pools.append(_survivor_pool);
   memory_pools.append(_old_pool);
   return memory_pools;
+}
+
+bool ParallelScavengeHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
+  size_t total_size = 0;
+  size_t alignment = os::vm_page_size();
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t region_size = dumptime_regions[i].byte_size();
+    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
+           "is not aligned to OS default page size", region_size);
+    total_size += region_size;
+  }
+
+  // Cannot use verbose=true because Metaspace is not initialized
+  HeapWord* result = _old_gen->allocate_aligned(total_size / HeapWordSize, alignment);
+  if (result == NULL) {
+    return false;
+  }
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t word_size = dumptime_regions[i].word_size();
+    MemRegion* curr_range = &runtime_regions[i];
+    if (i == 0) {
+      curr_range->set_start(result);
+    } else {
+      // next range should be aligned to page size
+      curr_range->set_start(runtime_regions[i-1].end());
+    }
+    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
+    curr_range->set_end(curr_range->start() + word_size);
+  }
+  if (is_open) {
+    _archive_open_regions = runtime_regions;
+    _archive_open_regions_count = num_regions;
+  } else {
+    _archive_closed_regions = runtime_regions;
+    _archive_closed_regions_count = num_regions;
+  }
+  return true;
+}
+
+void ParallelScavengeHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
+  for (int i = 0; i < num_regions; i++) {
+    _old_gen->complete_archive_region_alloc(regions[i]);
+  }
 }
 
 bool ParallelScavengeHeap::is_archived_object(oop object) const {

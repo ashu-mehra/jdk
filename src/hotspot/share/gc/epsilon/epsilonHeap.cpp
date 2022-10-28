@@ -278,50 +278,6 @@ HeapWord* EpsilonHeap::mem_allocate(size_t size, bool *gc_overhead_limit_was_exc
   return allocate_work(size);
 }
 
-HeapWord* EpsilonHeap::allocate_loaded_archive_space(size_t size) {
-  // Cannot use verbose=true because Metaspace is not initialized
-  return allocate_work(size, /* verbose = */false);
-}
-
-bool EpsilonHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
-  size_t total_size = 0;
-  size_t alignment = os::vm_page_size();
-
-  for (int i = 0; i < num_regions; i++) {
-    size_t region_size = dumptime_regions[i].byte_size();
-    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
-           "is not aligned to OS default page size", region_size);
-    total_size += region_size;
-  }
-
-  // Cannot use verbose=true because Metaspace is not initialized
-  HeapWord* result = allocate_work(total_size / HeapWordSize, false, alignment);
-  if (result == NULL) {
-    return false;
-  }
-
-  for (int i = 0; i < num_regions; i++) {
-    size_t word_size = dumptime_regions[i].word_size();
-    MemRegion* curr_range = &runtime_regions[i];
-    if (i == 0) {
-      curr_range->set_start(result);
-    } else {
-      // next range should be aligned to page size
-      curr_range->set_start(runtime_regions[i-1].end());
-    }
-    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
-    curr_range->set_end(curr_range->start() + word_size);
-  }
-  if (is_open) {
-    _archive_open_regions = runtime_regions;
-    _archive_open_regions_count = num_regions;
-  } else {
-    _archive_closed_regions = runtime_regions;
-    _archive_closed_regions_count = num_regions;
-  }
-  return true;
-}
-
 void EpsilonHeap::collect(GCCause::Cause cause) {
   switch (cause) {
     case GCCause::_metadata_GC_threshold:
@@ -405,6 +361,45 @@ void EpsilonHeap::print_metaspace_info() const {
   } else {
     log_info(gc, metaspace)("Metaspace: no reliable data");
   }
+}
+
+bool EpsilonHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
+  size_t total_size = 0;
+  size_t alignment = os::vm_page_size();
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t region_size = dumptime_regions[i].byte_size();
+    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
+           "is not aligned to OS default page size", region_size);
+    total_size += region_size;
+  }
+
+  // Cannot use verbose=true because Metaspace is not initialized
+  HeapWord* result = allocate_work(total_size / HeapWordSize, false, alignment);
+  if (result == NULL) {
+    return false;
+  }
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t word_size = dumptime_regions[i].word_size();
+    MemRegion* curr_range = &runtime_regions[i];
+    if (i == 0) {
+      curr_range->set_start(result);
+    } else {
+      // next range should be aligned to page size
+      curr_range->set_start(runtime_regions[i-1].end());
+    }
+    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
+    curr_range->set_end(curr_range->start() + word_size);
+  }
+  if (is_open) {
+    _archive_open_regions = runtime_regions;
+    _archive_open_regions_count = num_regions;
+  } else {
+    _archive_closed_regions = runtime_regions;
+    _archive_closed_regions_count = num_regions;
+  }
+  return true;
 }
 
 bool EpsilonHeap::is_archived_object(oop object) const {
