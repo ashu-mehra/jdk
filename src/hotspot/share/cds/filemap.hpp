@@ -464,16 +464,7 @@ public:
   MapArchiveResult map_regions(int regions[], int num_regions, char* mapped_base_address, ReservedSpace rs);
   void  unmap_regions(int regions[], int num_regions);
   void  map_or_load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN;
-  void  patch_embedded_pointers(MemRegion region, address oopmap,
-                                                size_t oopmap_size_in_bits, bool is_open_region) NOT_CDS_JAVA_HEAP_RETURN;
-  void  patch_heap_embedded_pointers() NOT_CDS_JAVA_HEAP_RETURN;
-  void  patch_heap_embedded_pointers(ArchiveHeapRegions* regions_data, bool is_open_region) NOT_CDS_JAVA_HEAP_RETURN;
-#if 0
-  void  patch_heap_embedded_pointers(MemRegion* regions, int num_regions,
-                                     int first_region_idx) NOT_CDS_JAVA_HEAP_RETURN;
-#endif
   bool  has_heap_regions()  NOT_CDS_JAVA_HEAP_RETURN_(false);
-  MemRegion get_archive_regions_range() NOT_CDS_JAVA_HEAP_RETURN_(MemRegion());
   bool  read_region(int i, char* base, size_t size, bool do_commit);
   char* map_bitmap_region();
   void  unmap_region(int i);
@@ -558,39 +549,8 @@ public:
     return header()->jvm_ident();
   }
 
- private:
-  void  seek_to_position(size_t pos);
-  char* skip_first_path_entry(const char* path) NOT_CDS_RETURN_(NULL);
-  int   num_paths(const char* path) NOT_CDS_RETURN_(0);
-  bool  check_paths_existence(const char* paths) NOT_CDS_RETURN_(false);
-  GrowableArray<const char*>* create_path_array(const char* path) NOT_CDS_RETURN_(NULL);
-  bool  classpath_failure(const char* msg, const char* name) NOT_CDS_RETURN_(false);
-  bool  check_paths(int shared_path_start_idx, int num_paths,
-                    GrowableArray<const char*>* rp_array) NOT_CDS_RETURN_(false);
-  bool  validate_boot_class_paths() NOT_CDS_RETURN_(false);
-  bool  validate_app_class_paths(int shared_app_paths_len) NOT_CDS_RETURN_(false);
-#if 0
-  bool  map_heap_regions(int first, int max, bool is_open_archive,
-                         MemRegion** regions_ret, int* num_regions_ret) NOT_CDS_JAVA_HEAP_RETURN_(false);
-#endif
-  bool  region_crc_check(char* buf, size_t size, int expected_crc) NOT_CDS_RETURN_(false);
-  bool  dealloc_heap_regions(ArchiveHeapRegions* regions_data) NOT_CDS_JAVA_HEAP_RETURN_(false);
-  bool  can_use_heap_regions();
-  bool  load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
-  bool  map_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
-  address heap_region_dumptime_start_address(FileMapRegion* spc) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
-  address heap_region_runtime_start_address(FileMapRegion* spc) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
-  void  map_heap_regions_impl() NOT_CDS_JAVA_HEAP_RETURN;
-  bool  map_heap_regions(ArchiveHeapRegions* regions_data, bool is_open_archive) NOT_CDS_JAVA_HEAP_RETURN_(false);
-  MapArchiveResult map_region(int i, intx addr_delta, char* mapped_base_address, ReservedSpace rs);
-  bool  relocate_pointers_in_core_regions(intx addr_delta);
-  static size_t set_oopmaps_offset(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_size);
-  static size_t write_oopmaps(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_offset, char* buffer);
-
-  void init_archive_heap_data(int first_region_idx, int last_region_dex, ArchiveHeapRegions** heap_regions_data) NOT_CDS_JAVA_HEAP_RETURN;
-  bool get_heap_range_for_archive_regions(ArchiveHeapRegions* regions_data, bool is_open) NOT_CDS_JAVA_HEAP_RETURN_(false);
-
-public:
+  char* map_region_at_address(FileMapRegion* si, char* requested_addr, size_t byte_size) const;
+ 
   address start_address_at_dumptime(FileMapRegion* spc) {
     if (UseCompressedOops) {
       size_t offset = spc->mapping_offset();
@@ -602,35 +562,27 @@ public:
       return header()->heap_begin() + spc->mapping_offset();
     }
   }
+private:
+  void  seek_to_position(size_t pos);
+  char* skip_first_path_entry(const char* path) NOT_CDS_RETURN_(NULL);
+  int   num_paths(const char* path) NOT_CDS_RETURN_(0);
+  bool  check_paths_existence(const char* paths) NOT_CDS_RETURN_(false);
+  GrowableArray<const char*>* create_path_array(const char* path) NOT_CDS_RETURN_(NULL);
+  bool  classpath_failure(const char* msg, const char* name) NOT_CDS_RETURN_(false);
+  bool  check_paths(int shared_path_start_idx, int num_paths,
+                    GrowableArray<const char*>* rp_array) NOT_CDS_RETURN_(false);
+  bool  validate_boot_class_paths() NOT_CDS_RETURN_(false);
+  bool  validate_app_class_paths(int shared_app_paths_len) NOT_CDS_RETURN_(false);
+  bool  dealloc_heap_regions(ArchiveHeapRegions* regions_data) NOT_CDS_JAVA_HEAP_RETURN_(false);
+  bool  can_use_heap_regions();
+  MapArchiveResult map_region(int i, intx addr_delta, char* mapped_base_address, ReservedSpace rs);
+  bool  relocate_pointers_in_core_regions(intx addr_delta);
+  static size_t set_oopmaps_offset(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_size);
+  static size_t write_oopmaps(GrowableArray<ArchiveHeapOopmapInfo> *oopmaps, size_t curr_offset, char* buffer);
 
-  ArchiveOopDecoder* get_oop_decoder() NOT_CDS_JAVA_HEAP_RETURN_(NULL);
-  void complete_heap_regions_mapping() NOT_CDS_JAVA_HEAP_RETURN;
-  void fill_failed_mapped_regions() NOT_CDS_JAVA_HEAP_RETURN;
+public:
+  bool  region_crc_check(char* buf, size_t size, int expected_crc) NOT_CDS_RETURN_(false);
 
-  static bool closed_regions_mapped() {
-    CDS_JAVA_HEAP_ONLY(return _current_info != NULL &&
-                       _current_info->_closed_heap_regions != NULL &&
-                       _current_info->_closed_heap_regions->is_mapped();)
-    NOT_CDS_JAVA_HEAP_RETURN_(false);
-  }
-  static bool open_regions_mapped() {
-    CDS_JAVA_HEAP_ONLY(return _current_info != NULL &&
-                              _current_info->_open_heap_regions != NULL &&
-                              _current_info->_open_heap_regions->is_mapped();)
-    NOT_CDS_JAVA_HEAP_RETURN_(false);
-  }
-
-  static bool is_archived_heap_available() {
-    return closed_regions_mapped() && open_regions_mapped();
-  }
-
-  static bool are_archived_strings_available() {
-    return closed_regions_mapped();
-  }
-
-  static bool are_archived_mirrors_available() {
-    return is_archived_heap_available();
-  }
 private:
 
 #if INCLUDE_JVMTI

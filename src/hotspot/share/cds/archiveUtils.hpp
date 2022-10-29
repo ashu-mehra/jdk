@@ -82,7 +82,8 @@ public:
 class ArchiveHeapRegions : public CHeapObj<mtInternal> {
 public:
   enum State {
-    UNMAPPED,
+    UNINITIALIZED,
+    HEAP_RESERVED,
     MAPPED,
     MAPPING_FAILED,
     MAPPING_FAILED_DEALLOCATED,
@@ -96,10 +97,12 @@ private:
   State _state;
 
 public:
-  ArchiveHeapRegions(int max_count);
+  ArchiveHeapRegions() {}
   ~ArchiveHeapRegions();
 
+  void init(int max_region_count);
   void set_state(State state) { _state = state; }
+  bool is_runtime_space_reserved() { return _state == HEAP_RESERVED; }
   bool is_mapped() { return _state == MAPPED; }
   bool is_mapping_failed() { return _state == MAPPING_FAILED; }
   void set_dumptime_region(int index, MemRegion region) { _dumptime_regions[index] = region; }
@@ -133,6 +136,16 @@ public:
 
   ptrdiff_t delta_for(int region_idx) {
     return (uintptr_t)runtime_region(region_idx).start() - (uintptr_t)dumptime_region(region_idx).start();
+  }
+
+  bool is_relocated() {
+    for (int i = 0; i < num_regions(); i++) {
+      if (runtime_region(i).start() != dumptime_region(i).start()) {
+        return true;
+        break;
+      }
+    }
+    return false;
   }
 };
 

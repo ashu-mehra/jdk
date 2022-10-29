@@ -147,12 +147,12 @@ void ArchivePtrMarker::compact(size_t max_non_null_offset) {
   _compacted = true;
 }
 
-ArchiveHeapRegions::ArchiveHeapRegions(int max_count) {
-  _dumptime_regions = MemRegion::create_array(max_count, mtInternal);
-  _runtime_regions = MemRegion::create_array(max_count, mtInternal);
-  _region_idx = (int *)os::malloc(sizeof(int)*max_count, mtInternal);
-  _num_regions = max_count;
-  _state = ArchiveHeapRegions::UNMAPPED;
+void ArchiveHeapRegions::init(int max_region_count) {
+  _dumptime_regions = MemRegion::create_array(max_region_count, mtInternal);
+  _runtime_regions = MemRegion::create_array(max_region_count, mtInternal);
+  _region_idx = (int *)os::malloc(sizeof(int) * max_region_count, mtInternal);
+  _num_regions = max_region_count;
+  _state = ArchiveHeapRegions::UNINITIALIZED;
 }
 
 ArchiveHeapRegions::~ArchiveHeapRegions() {

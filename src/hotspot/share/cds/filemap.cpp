@@ -1992,13 +1992,13 @@ void FileMapInfo::map_or_load_heap_regions() {
 
   if (can_use_heap_regions()) {
     if (ArchiveHeapLoader::can_use()) {
-      success = map_heap_regions();
+      ArchiveHeapLoader::map_heap_regions(this);
     } else {
       log_info(cds)("Cannot use CDS heap data. UseEpsilonGC, UseG1GC, UseSerialGC or UseParallelGC are required.");
     }
   }
 
-  if (!success) {
+  if (!ArchiveHeapLoader::open_regions_mapped()) {
     MetaspaceShared::disable_full_module_graph();
   }
 }
@@ -2048,266 +2048,14 @@ bool FileMapInfo::can_use_heap_regions() {
   }
   return true;
 }
-
-address FileMapInfo::heap_region_dumptime_start_address(FileMapRegion* spc) {
-  assert(UseSharedSpaces, "runtime only");
-  spc->assert_is_heap_region();
-  return start_address_at_dumptime(spc);
-}
-
-void FileMapInfo::init_archive_heap_data(int first_region_idx, int last_region_idx, ArchiveHeapRegions** heap_regions_data) {
-  ArchiveHeapRegions* regions_data = new ArchiveHeapRegions(last_region_idx - first_region_idx + 1);
-  int count = 0;
-
-  for (int i = first_region_idx; i <= last_region_idx; i++) {
-    FileMapRegion* si = space_at(i);
-    size_t size = si->used();
-    if (size > 0) {
-      HeapWord* start = (HeapWord*)heap_region_dumptime_start_address(si);
-      regions_data->set_dumptime_region(count, MemRegion(start, size / HeapWordSize));
-      regions_data->set_region_index(count, i);
-      count += 1;
-    }
-  }
-  regions_data->set_num_regions(count);
-  *heap_regions_data = regions_data;
-  return;
-}
-
-bool FileMapInfo::get_heap_range_for_archive_regions(ArchiveHeapRegions *regions_data, bool is_open) {
-  if (!Universe::heap()->alloc_archive_regions(regions_data->dumptime_regions(),
-                                           regions_data->num_regions(),
-                                           regions_data->runtime_regions(),
-                                           is_open)) {
-    return false;
-  }
-  if (is_open) {
-    log_info(cds)("open heap regions:");
-  } else {
-    log_info(cds)("closed heap regions:");
-  }
-
-  for (int i = 0; i < regions_data->num_regions(); i++) {
-    log_info(cds)("dumptime region: [" PTR_FORMAT " - " PTR_FORMAT "] mapped to [" PTR_FORMAT " - " PTR_FORMAT "]",
-                   p2i(regions_data->dumptime_region(i).start()), p2i(regions_data->dumptime_region(i).end()),
-                   p2i(regions_data->runtime_region(i).start()), p2i(regions_data->runtime_region(i).end()));
-  }
-
-  if (!_heap_pointers_need_patching) {
-    // if any region has offset > 0, then pointers need to be patched
-    for (int i = 0; i < regions_data->num_regions(); i++) {
-      if (regions_data->runtime_region(i).start() != regions_data->dumptime_region(i).start()) {
-        _heap_pointers_need_patching = true;
-        break;
-      }
-    }
-  }
-  return true;
-}
-
-void FileMapInfo::map_heap_regions_impl() {
-  if (narrow_oop_mode() != CompressedOops::mode() ||
-      narrow_oop_base() != CompressedOops::base() ||
-      narrow_oop_shift() != CompressedOops::shift()) {
-    log_info(cds)("CDS heap data needs to be relocated because the archive was created with an incompatible oop encoding mode.");
-    _heap_pointers_need_patching = true;
-  }
-
-  init_archive_heap_data(MetaspaceShared::first_closed_heap_region,
-                            MetaspaceShared::last_closed_heap_region, &_closed_heap_regions);
-  if (!get_heap_range_for_archive_regions(_closed_heap_regions, false)) {
-    log_info(cds)("Failed to enough free regions for in the heap for closed heap archive space");
-    _heap_pointers_need_patching = false;
-    return;
-  }
-
-  init_archive_heap_data(MetaspaceShared::first_open_heap_region,
-                            MetaspaceShared::last_open_heap_region, &_open_heap_regions);
-  if (!get_heap_range_for_archive_regions(_open_heap_regions, true)) {
-    log_info(cds)("Failed to enough free regions for in the heap for open heap archive space");
-    _heap_pointers_need_patching = false;
-    return;
-  }
-
-  if (_heap_pointers_need_patching) {
-    char* bitmap_base = map_bitmap_region();
-    if (bitmap_base == NULL) {
-      log_info(cds)("CDS heap cannot be used because bitmap region cannot be mapped");
-      _heap_pointers_need_patching = false;
-      return;
-    }
-  }
-
-  // Map the heap regions
-  // closed regions: GC does not write into these regions.
-  // open regions: GC can write into these regions.
-  if (map_heap_regions(_closed_heap_regions, false)) {
-    _closed_heap_regions->set_state(ArchiveHeapRegions::MAPPED);
-    if (map_heap_regions(_open_heap_regions, true)) {
-      _open_heap_regions->set_state(ArchiveHeapRegions::MAPPED);
-    }
-  } else {
-    _heap_pointers_need_patching = false;
-  }
-}
-
-bool FileMapInfo::map_heap_regions(ArchiveHeapRegions *regions_data, bool is_open_archive) {
-  MemRegion* regions = regions_data->runtime_regions();
-  int num_regions = regions_data->num_regions();
-
-  for (int i = 0; i < num_regions; i++) {
-    FileMapRegion* si = space_at(regions_data->region_index(i));
-    char* addr = (char*)regions[i].start();
-    char* base = os::map_memory(_fd, _full_path, si->file_offset(),
-                                addr, regions[i].byte_size(), si->read_only(),
-                                si->allow_exec());
-    if (base == NULL || base != addr) {
-      // dealloc the regions from java heap
-      if (dealloc_heap_regions(regions_data)) {
-        regions_data->set_state(ArchiveHeapRegions::MAPPING_FAILED_DEALLOCATED);
-      } else {
-        regions_data->set_state(ArchiveHeapRegions::MAPPING_FAILED);
-      }
-      log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
-                    INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
-                    p2i(addr), regions[i].byte_size());
-      return false;
-    }
-
-    if (VerifySharedSpaces && !region_crc_check(addr, regions[i].byte_size(), si->crc())) {
-      // dealloc the regions from java heap
-      if (dealloc_heap_regions(regions_data)) {
-        regions_data->set_state(ArchiveHeapRegions::MAPPING_FAILED_DEALLOCATED);
-      } else {
-        regions_data->set_state(ArchiveHeapRegions::MAPPING_FAILED);
-      }
-      log_info(cds)("UseSharedSpaces: mapped heap regions are corrupt");
-      return false;
-    }
-  }
-
-  return true;
-}
-
-void FileMapInfo::complete_heap_regions_mapping() {
-  if (FileMapInfo::closed_regions_mapped()) {
-    Universe::heap()->complete_archive_regions_alloc(_closed_heap_regions->runtime_regions(), _closed_heap_regions->num_regions());
-  }
-  if (FileMapInfo::open_regions_mapped()) {
-    Universe::heap()->complete_archive_regions_alloc(_open_heap_regions->runtime_regions(), _open_heap_regions->num_regions());
-  }
-}
-
-bool FileMapInfo::map_heap_regions() {
-  map_heap_regions_impl();
-
-  if (!FileMapInfo::closed_regions_mapped()) {
-    //assert(closed_heap_regions == NULL &&
-      //     num_closed_heap_regions == 0, "sanity");
-  }
-
-  if (!FileMapInfo::open_regions_mapped()) {
-    //assert(open_heap_regions == NULL && num_open_heap_regions == 0, "sanity");
-    return false;
-  } else {
-    return true;
-  }
-}
-
-// Patch all the embedded oop pointers inside an archived heap region,
-// to be consistent with the runtime oop encoding.
-template <typename T>
-class PatchEmbeddedPointers: public BitMapClosure {
-  T* _start;
-  bool _in_open_region;
-  ArchiveOopDecoder* _oop_decoder;
-
- public:
-  PatchEmbeddedPointers(T* start, bool in_open_region, ArchiveOopDecoder* oop_decoder) :
-    _start(start),
-    _in_open_region(in_open_region),
-    _oop_decoder(oop_decoder)
-  {}
-
-  bool do_bit(size_t offset) {
-    T* p = _start + offset;
-    uintptr_t dumptime_oop = (uintptr_t)((void *)*p);
-    oop runtime_oop = _oop_decoder->decode(dumptime_oop);
-    assert(runtime_oop != NULL, "null oops should have been filtered out at dump time");
-    RawAccess<IS_NOT_NULL>::oop_store((T *)p, runtime_oop);
-    return true;
-  }
-};
-
-ArchiveOopDecoder* FileMapInfo::get_oop_decoder() {
-  if (FileMapInfo::closed_regions_mapped() && !_oop_decoder) {
-    if (UseCompressedOops) {
-      _oop_decoder = new ArchiveNarrowOopDecoder(_closed_heap_regions, _open_heap_regions, narrow_oop_base(), narrow_oop_shift());
-    } else {
-      _oop_decoder = new ArchiveWideOopDecoder(_closed_heap_regions, _open_heap_regions);
-    }
-  }
-  return _oop_decoder;
-}
-
-void FileMapInfo::patch_embedded_pointers(MemRegion region, address oopmap,
-                                                size_t oopmap_size_in_bits, bool is_open_region) {
-  BitMapView bm((BitMap::bm_word_t*)oopmap, oopmap_size_in_bits);
-  ArchiveOopDecoder* oop_decoder = get_oop_decoder();
-
-#ifndef PRODUCT
-  ResourceMark rm;
-  ResourceBitMap checkBm = HeapShared::calculate_oopmap(region);
-  assert(bm.is_same(checkBm), "sanity");
-#endif
-
-  if (UseCompressedOops) {
-    PatchEmbeddedPointers<narrowOop> patcher((narrowOop*)region.start(), is_open_region, oop_decoder);
-    bm.iterate(&patcher);
-  } else {
-    PatchEmbeddedPointers<oop> patcher((oop*)region.start(), is_open_region, oop_decoder);
-    bm.iterate(&patcher);
-  }
-}
-
-void FileMapInfo::patch_heap_embedded_pointers() {
-  if (!_heap_pointers_need_patching) {
-    return;
-  }
-
-  log_info(cds)("patching heap embedded pointers");
-  patch_heap_embedded_pointers(_closed_heap_regions, false);
-
-  patch_heap_embedded_pointers(_open_heap_regions, true);
-}
-
-void FileMapInfo::patch_heap_embedded_pointers(ArchiveHeapRegions* regions_data, bool is_open_region) {
-  char* bitmap_base = map_bitmap_region();
-  assert(bitmap_base != NULL, "must have already been mapped");
-  for (int i=0; i<regions_data->num_regions(); i++) {
-    FileMapRegion* si = space_at(regions_data->region_index(i));
-    patch_embedded_pointers(regions_data->runtime_region(i),
-      (address)(space_at(MetaspaceShared::bm)->mapped_base()) + si->oopmap_offset(),
-      si->oopmap_size_in_bits(),
-      is_open_region);
-  }
-}
-void FileMapInfo::fill_failed_mapped_regions() {
-  if (_closed_heap_regions->is_mapping_failed()) {
-    Universe::heap()->fill_heap_regions(_closed_heap_regions->runtime_regions(), _closed_heap_regions->num_regions());
-    // in map_heap_regions_impl() if we fail to map closed archive regions, we wouldn't attempt to map open archive region
-    // and therefore should fill the heap area for open archive regions with dummy objects as well
-    Universe::heap()->fill_heap_regions(_open_heap_regions->runtime_regions(), _open_heap_regions->num_regions());
-  } else if (_open_heap_regions->is_mapping_failed()) {
-    Universe::heap()->fill_heap_regions(_open_heap_regions->runtime_regions(), _open_heap_regions->num_regions());
-  }
-}
-
-// dealloc the archive regions from java heap
-bool FileMapInfo::dealloc_heap_regions(ArchiveHeapRegions* regions_data) {
-  return Universe::heap()->dealloc_archive_regions(regions_data->runtime_regions(), regions_data->num_regions());
-}
 #endif // INCLUDE_CDS_JAVA_HEAP
+
+char* FileMapInfo::map_region_at_address(FileMapRegion* si, char* requested_addr, size_t byte_size) const {
+  char* base = os::map_memory(_fd, _full_path, si->file_offset(),
+                              requested_addr, byte_size, si->read_only(),
+                              si->allow_exec());
+  return base;
+}
 
 bool FileMapInfo::region_crc_check(char* buf, size_t size, int expected_crc) {
   int crc = ClassLoader::crc32(0, buf, (jint)size);

@@ -1600,7 +1600,7 @@ void SystemDictionaryShared::update_archived_mirror_native_pointers_for(LambdaPr
 }
 
 void SystemDictionaryShared::update_archived_mirror_native_pointers() {
-  if (!FileMapInfo::are_archived_mirrors_available()) {
+  if (!ArchiveHeapLoader::are_archived_mirrors_available()) {
     return;
   }
   if (MetaspaceShared::relocation_delta() == 0) {

@@ -896,7 +896,7 @@ void java_lang_Class::fixup_mirror(Klass* k, TRAPS) {
   }
 
   if (k->is_shared() && k->has_archived_mirror_index()) {
-    if (FileMapInfo::are_archived_mirrors_available()) {
+    if (ArchiveHeapLoader::are_archived_mirrors_available()) {
       bool present = restore_archived_mirror(k, Handle(), Handle(), Handle(), CHECK);
       assert(present, "Missing archived mirror for %s", k->external_name());
       return;
@@ -1323,7 +1323,7 @@ bool java_lang_Class::restore_archived_mirror(Klass *k,
 
   // mirror is archived, restore
   log_debug(cds, mirror)("Archived mirror is: " PTR_FORMAT, p2i(m));
-  if (FileMapInfo::is_archived_heap_available()) {
+  if (ArchiveHeapLoader::is_archived_heap_available()) {
     assert(Universe::heap()->is_archived_object(m), "must be archived mirror object");
   }
   assert(as_Klass(m) == k, "must be");

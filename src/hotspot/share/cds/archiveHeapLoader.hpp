@@ -35,18 +35,62 @@
 #include "utilities/macros.hpp"
 
 class  FileMapInfo;
-struct LoadedArchiveHeapRegion;
 
 class ArchiveHeapLoader : AllStatic {
-public:
+private:
+#if INCLUDE_CDS_JAVA_HEAP
+  static ArchiveOopDecoder* _oop_decoder;
+  static ArchiveHeapRegions _closed_heap_regions;
+  static ArchiveHeapRegions _open_heap_regions;
 
+  static bool _heap_pointers_need_patching;
+
+  static void init_archive_heap_regions(FileMapInfo* map_info, int first_region_idx, int last_region_idx, ArchiveHeapRegions* heap_regions);
+  static void cleanup_regions(ArchiveHeapRegions* heap_regions);
+  static void cleanup();
+  static bool get_heap_range_for_archive_regions(ArchiveHeapRegions* heap_regions, bool is_open);
+  static bool is_pointer_patching_needed(FileMapInfo* map_info);
+  static void log_mapped_regions(ArchiveHeapRegions* heap_regions, bool is_open);
+  static bool map_heap_regions(FileMapInfo* map_info, ArchiveHeapRegions* heap_regions);
+  static bool dealloc_heap_regions(ArchiveHeapRegions* heap_regions);
+  static void patch_embedded_pointers(FileMapInfo* map_info, MemRegion region, address oopmap, size_t oopmap_size_in_bits);
+  static void patch_heap_embedded_pointers(FileMapInfo* map_info, ArchiveHeapRegions* heap_regions);
+  static void fill_failed_mapped_regions();
+#endif /* INCLUDE_CDS_JAVA_HEAP */
+
+public:
   // Can this VM use archived heap regions?
   static bool can_use() {
     CDS_JAVA_HEAP_ONLY(return ((UseG1GC || UseEpsilonGC || UseParallelGC || UseSerialGC) && UseCompressedClassPointers);)
     NOT_CDS_JAVA_HEAP(return false;)
   }
 
+  static void map_heap_regions(FileMapInfo* map_info) NOT_CDS_JAVA_HEAP_RETURN;
+  static void complete_heap_regions_mapping() NOT_CDS_JAVA_HEAP_RETURN;
+  static ArchiveOopDecoder* get_oop_decoder(FileMapInfo* map_info) NOT_CDS_JAVA_HEAP_RETURN_(NULL);
+  static void patch_heap_embedded_pointers(FileMapInfo* map_info) NOT_CDS_JAVA_HEAP_RETURN;
   static void fixup_regions() NOT_CDS_JAVA_HEAP_RETURN;
+
+  static bool closed_regions_mapped() {
+    CDS_JAVA_HEAP_ONLY(return _closed_heap_regions.is_mapped();)
+    NOT_CDS_JAVA_HEAP_RETURN_(false);
+  }
+  static bool open_regions_mapped() {
+    CDS_JAVA_HEAP_ONLY(return _open_heap_regions.is_mapped();)
+    NOT_CDS_JAVA_HEAP_RETURN_(false);
+  }
+
+  static bool is_archived_heap_available() {
+    return closed_regions_mapped() && open_regions_mapped();
+  }
+
+  static bool are_archived_strings_available() {
+    return closed_regions_mapped();
+  }
+
+  static bool are_archived_mirrors_available() {
+    return is_archived_heap_available();
+  }
 };
 
 #endif // SHARE_CDS_ARCHIVEHEAPLOADER_HPP

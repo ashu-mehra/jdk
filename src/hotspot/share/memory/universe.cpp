@@ -452,7 +452,7 @@ void Universe::genesis(TRAPS) {
 void Universe::initialize_basic_type_mirrors(TRAPS) {
 #if INCLUDE_CDS_JAVA_HEAP
     if (UseSharedSpaces &&
-        FileMapInfo::are_archived_mirrors_available() &&
+        ArchiveHeapLoader::are_archived_mirrors_available() &&
         _mirrors[T_INT].resolve() != NULL) {
       assert(ArchiveHeapLoader::can_use(), "Sanity");
 

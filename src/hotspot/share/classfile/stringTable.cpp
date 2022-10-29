@@ -73,7 +73,7 @@ const double CLEAN_DEAD_HIGH_WATER_MARK = 0.5;
 #if INCLUDE_CDS_JAVA_HEAP
 inline oop read_string_from_compact_hashtable(address base_address, u4 offset) {
   FileMapInfo* current_info = FileMapInfo::current_info();
-  ArchiveOopDecoder* oop_decoder = current_info->get_oop_decoder();
+  ArchiveOopDecoder* oop_decoder = ArchiveHeapLoader::get_oop_decoder(current_info);
   assert(oop_decoder != NULL, "oop decoder cannot be null for shared strings");
   uintptr_t ptr = (uintptr_t)offset;
   if (!UseCompressedOops) {
@@ -828,7 +828,7 @@ void StringTable::serialize_shared_table_header(SerializeClosure* soc) {
   if (soc->writing()) {
     // Sanity. Make sure we don't use the shared table at dump time
     _shared_table.reset();
-  } else if (!FileMapInfo::are_archived_strings_available()) {
+  } else if (!ArchiveHeapLoader::are_archived_strings_available()) {
     _shared_table.reset();
   }
 
