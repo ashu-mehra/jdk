@@ -510,6 +510,11 @@ private:
 
   void verify_numa_regions(const char* desc);
 
+  // Insert any required filler objects in the G1 regions around the specified
+  // ranges to make the regions parseable. This must be called after
+  // alloc_archive_regions, and after class loading has occurred.
+  void fill_archive_regions(MemRegion* range, size_t count);
+
   // Populate the G1BlockOffsetTablePart for archived regions with the given
   // memory ranges.
   void populate_archive_regions_bot_part(MemRegion* range, size_t count);
