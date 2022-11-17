@@ -2080,11 +2080,18 @@ bool FileMapInfo::has_heap_regions() {
   return (space_at(MetaspaceShared::first_closed_heap_region)->used() > 0);
 }
 
-// Returns the address range of the archived heap regions computed using the
-// current oop encoding mode. This range may be different than the one seen at
-// dump time due to encoding mode differences. The result is used in determining
-// if/how these regions should be relocated at run time.
-MemRegion FileMapInfo::get_heap_regions_range_with_current_oop_encoding_mode() {
+address FileMapInfo::heap_region_dumptime_start_address(FileMapRegion* si) {
+  size_t offset = si->mapping_offset();
+  if (UseCompressedOops) {
+    narrowOop n = CompressedOops::narrow_oop_cast(offset);
+    s = (address)((uintptr_t)narrow_oop_base()) + ((uintptr_t)n << narrow_oop_shift());
+  } else {
+    assert(is_aligned(spc->mapping_offset(), sizeof(HeapWord)), "must be");
+    s = header()->heap_begin() + offset;
+  }
+}
+
+address FileMapInfo::get_dumptime_heap_regions_range() {
   address start = (address) max_uintx;
   address end   = NULL;
 
@@ -2094,7 +2101,7 @@ MemRegion FileMapInfo::get_heap_regions_range_with_current_oop_encoding_mode() {
     FileMapRegion* si = space_at(i);
     size_t size = si->used();
     if (size > 0) {
-      address s = start_address_as_decoded_with_current_oop_encoding_mode(si);
+      address s = heap_region_dumptime_start_address(si);
       address e = s + size;
       if (start > s) {
         start = s;
@@ -2214,8 +2221,8 @@ void FileMapInfo::map_heap_regions_impl() {
     log_info(cds)("CDS heap data needs to be relocated because the archive was created with an incompatible oop encoding mode.");
     _heap_pointers_need_patching = true;
   } else {
+    MemRegion range = get_dumptime_heap_regions_range();
     if (UseCompressedOops) {
-      MemRegion range = get_heap_regions_range_with_current_oop_encoding_mode();
       if (!CompressedOops::is_in(range)) {
         log_info(cds)("CDS heap data needs to be relocated because");
         log_info(cds)("the desired range " PTR_FORMAT " - "  PTR_FORMAT, p2i(range.start()), p2i(range.end()));
@@ -2226,7 +2233,6 @@ void FileMapInfo::map_heap_regions_impl() {
         _heap_pointers_need_patching = true;
       }
     } else {
-      MemRegion range((HeapWord*)header()->heap_begin(), (HeapWord*)header()->heap_end());
       if (!G1CollectedHeap::heap()->reserved().contains(range)) {
         log_info(cds)("CDS heap data needs to be relocated because");
         log_info(cds)("the desired range " PTR_FORMAT " - "  PTR_FORMAT, p2i(range.start()), p2i(range.end()));
