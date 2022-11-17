@@ -123,7 +123,7 @@ class TenuredGeneration: public Generation {
   // Iteration
   void object_iterate(ObjectClosure* blk);
 
-  void complete_archive_region_alloc(MemRegion archive_space);
+  void complete_archive_region_alloc(MemRegion* regions, int num_regions);
 
   virtual inline HeapWord* allocate(size_t word_size, bool is_tlab);
   virtual inline HeapWord* par_allocate(size_t word_size, bool is_tlab);

@@ -484,14 +484,23 @@ void TenuredGeneration::object_iterate(ObjectClosure* blk) {
   _the_space->object_iterate(blk);
 }
 
-void TenuredGeneration::complete_archive_region_alloc(MemRegion archive_space) {
+void TenuredGeneration::complete_archive_region_alloc(MemRegion* regions, int num_regions) {
   // Create the BOT for the archive space.
+  static bool threshold_initialized = false;
   TenuredSpace* space = (TenuredSpace*)_the_space;
-  HeapWord* start = archive_space.start();
-  while (start < archive_space.end()) {
-    size_t word_size = _the_space->block_size(start);
-    space->alloc_block(start, start + word_size);
-    start += word_size;
+  if (!threshold_initialized) {
+    space->initialize_threshold();
+    threshold_initialized = true;
+  }
+  for (int i = 0; i < num_regions; i++) {
+    MemRegion archive_space = regions[i];
+    assert(used_region().contains(archive_space), "Archive space not contained in old gen");
+    HeapWord* start = archive_space.start();
+    while (start < archive_space.end()) {
+      size_t word_size = _the_space->block_size(start);
+      space->alloc_block(start, start + word_size);
+      start += word_size;
+    }
   }
 }
 

@@ -146,8 +146,5 @@ bool SerialHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regi
 }
 
 void SerialHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
-  for (int i = 0; i < num_regions; i++) {
-    assert(old_gen()->used_region().contains(regions[i]), "Archive space not contained in old gen");
-    old_gen()->complete_archive_region_alloc(regions[i]);
-  }
+  old_gen()->complete_archive_region_alloc(regions, num_regions);
 }
