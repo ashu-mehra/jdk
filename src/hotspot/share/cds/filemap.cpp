@@ -2166,7 +2166,6 @@ void FileMapInfo::unmap_regions(int regions[], int num_regions) {
 // Unmap a memory region in the address space.
 
 void FileMapInfo::unmap_region(int i) {
-  assert(!HeapShared::is_heap_region(i), "sanity");
   FileMapRegion* si = space_at(i);
   char* mapped_base = si->mapped_base();
   size_t size = si->used_aligned();
