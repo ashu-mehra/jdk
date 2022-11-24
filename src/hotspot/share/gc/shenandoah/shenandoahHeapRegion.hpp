@@ -119,6 +119,8 @@ private:
     _cset,                    // region is in collection set
     _pinned,                  // region is pinned
     _pinned_cset,             // region is pinned and in cset (evac failure path)
+    _closed_archive,
+    _open_archive,
     _trash,                   // region contains only trash
     _REGION_STATES_NUM        // last
   };
@@ -134,6 +136,8 @@ private:
       case _cset:                    return "Collection Set";
       case _pinned:                  return "Pinned";
       case _pinned_cset:             return "Collection Set, Pinned";
+      case _closed_archive:          return "Closed Archive, Pinned";
+      case _open_archive:            return "Open Archive, Pinned";
       case _trash:                   return "Trash";
       default:
         ShouldNotReachHere();
@@ -154,6 +158,8 @@ private:
       case _trash:                  return 7;
       case _pinned_cset:            return 8;
       case _pinned_humongous_start: return 9;
+      case _closed_archive:         return 10;
+      case _open_archive:           return 11;
       default:
         ShouldNotReachHere();
         return -1;
