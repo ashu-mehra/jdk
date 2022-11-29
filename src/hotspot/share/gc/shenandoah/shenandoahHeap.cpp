@@ -26,6 +26,7 @@
 #include "memory/allocation.hpp"
 #include "memory/universe.hpp"
 
+#include "gc/shared/collectedHeap.hpp"
 #include "gc/shared/gcArguments.hpp"
 #include "gc/shared/gcTimer.hpp"
 #include "gc/shared/gcTraceTime.inline.hpp"
@@ -1021,7 +1022,7 @@ void ShenandoahHeap::trash_cset_regions() {
 
 void ShenandoahHeap::print_heap_regions_on(outputStream* st) const {
   st->print_cr("Heap Regions:");
-  st->print_cr("EU=empty-uncommitted, EC=empty-committed, R=regular, H=humongous start, HC=humongous continuation, CS=collection set, T=trash, P=pinned");
+  st->print_cr("EU=empty-uncommitted, EC=empty-committed, R=regular, H=humongous start, HC=humongous continuation, CS=collection set, T=trash, P=pinned, A=archived");
   st->print_cr("BTE=bottom/top/end, U=used, T=TLAB allocs, G=GCLAB allocs, S=shared allocs, L=live data");
   st->print_cr("R=root, CP=critical pins, TAMS=top-at-mark-start, UWM=update watermark");
   st->print_cr("SN=alloc sequence number");
@@ -2322,4 +2323,89 @@ bool ShenandoahHeap::requires_barriers(stackChunkOop obj) const {
   }
 
   return false;
+}
+
+bool ShenandoahHeap::alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open) {
+  size_t total_size = 0;
+  size_t alignment = os::vm_page_size();
+  size_t archive_region_alignment = 1024*1024; // region alignment used by G1GC at dump time
+
+  if (ShenandoahHeapRegion::region_size_bytes() < archive_region_alignment) {
+    log_info(gc)("Cannot use archived objects due to region size mismatc");
+    return false;
+  }
+  for (int i = 0; i < num_regions; i++) {
+    size_t region_size = dumptime_regions[i].byte_size();
+    assert(is_aligned(region_size, alignment), "region size (" SIZE_FORMAT " bytes) "
+           "is not aligned to OS default page size", region_size);
+    total_size += region_size;
+  }
+
+  ShenandoahAllocRequest req = ShenandoahAllocRequest::for_archive(total_size, is_open);
+  HeapWord* mem_begin = allocate_memory(req);
+  if (mem_begin == NULL) {
+    log_info(gc)("Failed to alloate memory for archived objects");
+    return false;
+  }
+
+  size_t prev_range_last_region_idx = -1;
+
+  for (int i = 0; i < num_regions; i++) {
+    size_t word_size = dumptime_regions[i].word_size();
+    MemRegion* curr_range = &runtime_regions[i];
+    if (i == 0) {
+      curr_range->set_start(mem_begin);
+    } else {
+      // next range should be aligned to size
+      curr_range->set_start(align_up(runtime_regions[i-1].end(), archive_region_alignment));
+    }
+    assert(is_aligned(curr_range->start(), alignment), "region does not start at OS default page size");
+    curr_range->set_end(curr_range->start() + word_size);
+
+    // set region top
+    size_t curr_region_idx = heap_region_index_containing(curr_range->start());
+    HeapWord* last_address = curr_range->last();
+    size_t last_region_idx = heap_region_index_containing(last_address);
+
+    while (curr_region_idx <= last_region_idx) {
+      ShenandoahHeapRegion* curr_region = get_region(curr_region_idx);
+      if (curr_region_idx != last_region_idx) {
+        curr_region->set_top(curr_region->end());
+      } else {
+        curr_region->set_top(last_address + 1);
+      }
+      curr_region_idx += 1;
+    }
+    prev_range_last_region_idx = last_region_idx;
+  }
+
+  return true;
+}
+
+void ShenandoahHeap::fill_archive_regions(MemRegion* regions, int num_regions) {
+  size_t prev_last_idx = -1;
+  HeapWord* prev_last_address = nullptr;
+
+  for (int i = 0; i < num_regions; i++) {
+    HeapWord* start_address = regions[i].start();
+    HeapWord* last_address = regions[i].last();
+    size_t start_region_idx = heap_region_index_containing(start_address);
+    size_t last_region_idx  = heap_region_index_containing(last_address);
+
+    if (start_region_idx == prev_last_idx) {
+      HeapWord* bottom_address = prev_last_address + 1;
+      assert(start_address >= bottom_address, "must be");
+      if (start_address > bottom_address) {
+        size_t fill_size = pointer_delta(start_address, prev_last_address + 1);
+        CollectedHeap::fill_with_objects(prev_last_address + 1, fill_size);
+      }
+    }
+
+    prev_last_idx = last_region_idx;
+    prev_last_address = last_address;
+  }
+}
+
+void ShenandoahHeap::complete_archive_regions_alloc(MemRegion* regions, int num_regions) {
+  fill_archive_regions(regions, num_regions);
 }

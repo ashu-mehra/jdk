@@ -291,10 +291,19 @@ HeapWord* ShenandoahFreeSet::allocate_contiguous(ShenandoahAllocRequest& req) {
     assert(i == beg || _heap->get_region(i - 1)->index() + 1 == r->index(), "Should be contiguous");
     assert(r->is_empty(), "Should be empty");
 
-    if (i == beg) {
-      r->make_humongous_start();
+    if (req.is_archive_alloc()) {
+      if (req.type() == ShenandoahAllocRequest::_alloc_open_archive) {
+        r->make_open_archive();
+      } else {
+        assert(req.type() == ShenandoahAllocRequest::_alloc_closed_archive, "invalid request type");
+        r->make_closed_archive();
+      }
     } else {
-      r->make_humongous_cont();
+      if (i == beg) {
+        r->make_humongous_start();
+      } else {
+        r->make_humongous_cont();
+      }
     }
 
     // Trailing region may be non-full, record the remainder there
@@ -305,7 +314,10 @@ HeapWord* ShenandoahFreeSet::allocate_contiguous(ShenandoahAllocRequest& req) {
       used_words = ShenandoahHeapRegion::region_size_words();
     }
 
-    r->set_top(r->bottom() + used_words);
+    // Do not set top for archived regions. It will be done in ShenandoahHeap::alloc_archive_regions later
+    if (!req.is_archive_alloc()) {
+      r->set_top(r->bottom() + used_words);
+    }
 
     _mutator_free_bitmap.clear_bit(r->index());
   }
@@ -538,7 +550,9 @@ HeapWord* ShenandoahFreeSet::allocate(ShenandoahAllocRequest& req, bool& in_new_
   shenandoah_assert_heaplocked();
   assert_bounds();
 
-  if (req.size() > ShenandoahHeapRegion::humongous_threshold_words()) {
+  if (req.is_archive_alloc()) {
+    return allocate_contiguous(req);
+  } else if (req.size() > ShenandoahHeapRegion::humongous_threshold_words()) {
     switch (req.type()) {
       case ShenandoahAllocRequest::_alloc_shared:
       case ShenandoahAllocRequest::_alloc_shared_gc:

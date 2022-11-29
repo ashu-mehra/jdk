@@ -528,10 +528,15 @@ private:
   inline HeapWord* allocate_from_gclab(Thread* thread, size_t size);
   HeapWord* allocate_from_gclab_slow(Thread* thread, size_t size);
   HeapWord* allocate_new_gclab(size_t min_size, size_t word_size, size_t* actual_size);
+  void fill_archive_regions(MemRegion* regions, int num_regions);
 
 public:
   HeapWord* allocate_memory(ShenandoahAllocRequest& request);
   HeapWord* mem_allocate(size_t size, bool* what);
+  virtual bool alloc_archive_regions(MemRegion* dumptime_regions, int num_regions, MemRegion* runtime_regions, bool is_open);
+  virtual void complete_archive_regions_alloc(MemRegion* regions, int num_regions);
+  virtual bool can_archive_regions_be_collected() { return false; }
+
   MetaWord* satisfy_failed_metadata_allocation(ClassLoaderData* loader_data,
                                                size_t size,
                                                Metaspace::MetadataType mdtype);

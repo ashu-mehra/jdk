@@ -188,6 +188,8 @@ public:
   void make_empty();
   void make_uncommitted();
   void make_committed_bypass();
+  void make_open_archive();
+  void make_closed_archive();
 
   // Individual states:
   bool is_empty_uncommitted()      const { return _state == _empty_uncommitted; }
@@ -204,6 +206,7 @@ public:
   bool is_committed()              const { return !is_empty_uncommitted(); }
   bool is_cset()                   const { return _state == _cset   || _state == _pinned_cset; }
   bool is_pinned()                 const { return _state == _pinned || _state == _pinned_cset || _state == _pinned_humongous_start; }
+  bool is_archive()                const { return _state == _open_archive || _state == _closed_archive; }
 
   // Macro-properties:
   bool is_alloc_allowed()          const { return is_empty() || is_regular() || _state == _pinned; }

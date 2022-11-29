@@ -34,6 +34,8 @@ public:
     _alloc_shared_gc,   // Allocate common, outside of GCLAB
     _alloc_tlab,        // Allocate TLAB
     _alloc_gclab,       // Allocate GCLAB
+    _alloc_open_archive,
+    _alloc_closed_archive,
     _ALLOC_LIMIT
   };
 
@@ -47,6 +49,10 @@ public:
         return "TLAB";
       case _alloc_gclab:
         return "GCLAB";
+      case _alloc_open_archive:
+        return "Open Archive";
+      case _alloc_closed_archive:
+        return "Closed Archive";
       default:
         ShouldNotReachHere();
         return "";
@@ -87,6 +93,10 @@ public:
     return ShenandoahAllocRequest(0, requested_size, _alloc_shared);
   }
 
+  static inline ShenandoahAllocRequest for_archive(size_t requested_size, bool is_open) {
+    return ShenandoahAllocRequest(0, requested_size, is_open ? _alloc_open_archive : _alloc_closed_archive);
+  }
+
   inline size_t size() {
     return _requested_size;
   }
@@ -121,10 +131,28 @@ public:
     switch (_alloc_type) {
       case _alloc_tlab:
       case _alloc_shared:
+      case _alloc_open_archive:
+      case _alloc_closed_archive:
         return true;
       case _alloc_gclab:
       case _alloc_shared_gc:
         return false;
+      default:
+        ShouldNotReachHere();
+        return false;
+    }
+  }
+
+  inline bool is_archive_alloc() {
+    switch (_alloc_type) {
+      case _alloc_tlab:
+      case _alloc_shared:
+      case _alloc_gclab:
+      case _alloc_shared_gc:
+        return false;
+      case _alloc_open_archive:
+      case _alloc_closed_archive:
+        return true;
       default:
         ShouldNotReachHere();
         return false;
@@ -139,6 +167,9 @@ public:
       case _alloc_gclab:
       case _alloc_shared_gc:
         return true;
+      case _alloc_open_archive:
+      case _alloc_closed_archive:
+        return false;
       default:
         ShouldNotReachHere();
         return false;
@@ -152,6 +183,9 @@ public:
         return true;
       case _alloc_shared:
       case _alloc_shared_gc:
+        return false;
+      case _alloc_open_archive:
+      case _alloc_closed_archive:
         return false;
       default:
         ShouldNotReachHere();

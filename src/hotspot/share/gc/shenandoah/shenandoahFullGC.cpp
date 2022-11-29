@@ -897,7 +897,7 @@ public:
     // size-based iteration in marked_object_iterate().
     // NOTE: See blurb at ShenandoahMCResetCompleteBitmapTask on why we need to skip
     // pinned regions.
-    if (!r->is_pinned()) {
+    if (!r->is_pinned() && !r->is_archive()) {
       _heap->complete_marking_context()->reset_top_at_mark_start(r);
     }
 
@@ -1014,7 +1014,7 @@ public:
     ShenandoahHeap* heap = ShenandoahHeap::heap();
     ShenandoahMarkingContext* const ctx = heap->complete_marking_context();
     while (region != NULL) {
-      if (heap->is_bitmap_slice_committed(region) && !region->is_pinned() && region->has_live()) {
+      if (heap->is_bitmap_slice_committed(region) && !region->is_pinned() && !region->is_archive() && region->has_live()) {
         ctx->clear_bitmap(region);
       }
       region = _regions.next();

@@ -63,7 +63,7 @@ private:
 public:
   // Can this VM map archived heap regions?
   static bool can_use() {
-    CDS_JAVA_HEAP_ONLY(return ((UseG1GC || UseEpsilonGC || UseParallelGC || UseSerialGC) && UseCompressedClassPointers);)
+    CDS_JAVA_HEAP_ONLY(return ((UseG1GC || UseEpsilonGC || UseParallelGC || UseSerialGC || UseShenandoahGC) && UseCompressedClassPointers);)
     NOT_CDS_JAVA_HEAP(return false;)
   }
   static bool are_archived_strings_available() {

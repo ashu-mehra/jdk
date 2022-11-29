@@ -301,6 +301,32 @@ void ShenandoahHeapRegion::make_committed_bypass() {
   }
 }
 
+void ShenandoahHeapRegion::make_open_archive() {
+  shenandoah_assert_heaplocked();
+  switch (_state) {
+    case _empty_uncommitted:
+    case _empty_committed:
+      do_commit();
+      set_state(_open_archive);
+      return;
+    default:
+      report_illegal_transition("open archive");
+  }
+}
+
+void ShenandoahHeapRegion::make_closed_archive() {
+  shenandoah_assert_heaplocked();
+  switch (_state) {
+    case _empty_uncommitted:
+    case _empty_committed:
+      do_commit();
+      set_state(_closed_archive);
+      return;
+    default:
+      report_illegal_transition("closed archive");
+  }
+}
+
 void ShenandoahHeapRegion::reset_alloc_metadata() {
   _tlab_allocs = 0;
   _gclab_allocs = 0;
@@ -357,6 +383,12 @@ void ShenandoahHeapRegion::print_on(outputStream* st) const {
       break;
     case _pinned_cset:
       st->print("|CSP");
+      break;
+    case _open_archive:
+      st->print("|OA");
+      break;
+    case _closed_archive:
+      st->print("|CA");
       break;
     default:
       ShouldNotReachHere();
