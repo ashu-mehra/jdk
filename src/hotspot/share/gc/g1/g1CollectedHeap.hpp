@@ -678,16 +678,10 @@ public:
   void free_humongous_region(HeapRegion* hr,
                              FreeRegionList* free_list);
 
-  // Facility for allocating a fixed range within the heap and marking
-  // the containing regions as 'archive'. For use at JVM init time, when the
-  // caller may mmap archived heap data at the specified range.
-
-  // Verify that the range is within the reserved heap.
-  bool check_archive_addresses(MemRegion range);
-
-  // Commit the appropriate G1 region(s) containing the specified range
-  // and mark them as 'old' region(s).
-  bool alloc_archive_regions(MemRegion range);
+  // Commit the required number of G1 region(s) according to the size requested,
+  // mark them as 'old' region(s) and return the MemRegion corresponsing to the
+  // committed G1 regions. In case of failure, an empty MemRegion is returned.
+  MemRegion alloc_archive_regions(size_t word_size);
 
   // Insert any required filler objects in the G1 regions around the specified
   // range to make the regions parseable. This must be called after

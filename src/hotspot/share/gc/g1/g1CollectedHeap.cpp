@@ -490,57 +490,47 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
   return NULL;
 }
 
-bool G1CollectedHeap::check_archive_addresses(MemRegion range) {
-  MemRegion reserved = _hrm.reserved();
-  if (!reserved.contains(range.start()) || !reserved.contains(range.last())) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
-bool G1CollectedHeap::alloc_archive_regions(MemRegion range) {
+MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   MutexLocker x(Heap_lock);
+  // Empty range is returned in case of failure.
+  MemRegion empty_range = MemRegion(0, size_t(0)); // typecast size_t(0) is needed to resolve ambiguity
 
   MemRegion reserved = _hrm.reserved();
+
+  if (reserved.word_size() <= word_size) {
+    log_info(gc, heap)("Unable to allocate regions as archive heap is too large; size requested = " SIZE_FORMAT
+                       " bytes, heap = " SIZE_FORMAT " bytes", word_size, reserved.word_size());
+    return empty_range;
+  }
 
   // Temporarily disable pretouching of heap pages. This interface is used
   // when mmap'ing archived heap data in, so pre-touching is wasted.
   FlagSetting fs(AlwaysPreTouch, false);
 
-  // For the specified MemRegion range, allocate the corresponding G1
-  // region(s) and mark them as old region(s).
-  HeapWord* start_address = range.start();
-  size_t word_size = range.word_size();
-  HeapWord* last_address = range.last();
   size_t commits = 0;
-
-  guarantee(reserved.contains(start_address) && reserved.contains(last_address),
-            "MemRegion outside of heap [" PTR_FORMAT ", " PTR_FORMAT "]",
-            p2i(start_address), p2i(last_address));
-
-  // Perform the actual region allocation, exiting if it fails.
-  // Then note how much new space we have allocated.
+  // Attempt to allocate towards the end of the heap.
+  HeapWord* start_addr = (HeapWord*)align_down(reserved.end() - word_size,
+                                               HeapRegion::min_region_size_in_words() * HeapWordSize);
+  MemRegion range = MemRegion(start_addr, word_size);
   if (!_hrm.allocate_containing_regions(range, &commits, workers())) {
-    return false;
+    return empty_range;
   }
   increase_used(word_size * HeapWordSize);
   if (commits != 0) {
     log_debug(gc, ergo, heap)("Attempt heap expansion (allocate archive regions). Total size: " SIZE_FORMAT "B",
                               HeapRegion::GrainWords * HeapWordSize * commits);
-
   }
 
   // Mark each G1 region touched by the range as old, add it to
   // the old set, and set top.
-  HeapRegion* curr_region = _hrm.addr_to_region(start_address);
-  HeapRegion* last_region = _hrm.addr_to_region(last_address);
+  HeapRegion* curr_region = _hrm.addr_to_region(range.start());
+  HeapRegion* last_region = _hrm.addr_to_region(range.last());
 
   while (curr_region != NULL) {
     assert(curr_region->is_empty() && !curr_region->is_pinned(),
            "Region already in use (index %u)", curr_region->hrm_index());
-    curr_region->set_old(); // was 
+    curr_region->set_old(); // was
     _hr_printer.alloc(curr_region);
     _old_set.add(curr_region);
 
@@ -550,13 +540,13 @@ bool G1CollectedHeap::alloc_archive_regions(MemRegion range) {
       top = curr_region->end();
       next_region = _hrm.next_region_in_heap(curr_region);
     } else {
-      top = last_address + 1;
+      top = range.end();
       next_region = NULL;
     }
     curr_region->set_top(top);
     curr_region = next_region;
   }
-  return true;
+  return range;
 }
 
 // TODO -- this function should be removed -- all the G1 regions within the
