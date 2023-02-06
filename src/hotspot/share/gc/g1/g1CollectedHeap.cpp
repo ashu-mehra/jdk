@@ -490,8 +490,11 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
   return NULL;
 }
 
-MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
+
+MemRegion G1CollectedHeap::alloc_archive_heap_memory(size_t word_size, size_t alignment) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
+  assert(is_object_aligned(word_size), "must be");
+  assert(is_object_aligned(alignment), "must be");
   MutexLocker x(Heap_lock);
   // Empty range is returned in case of failure.
   MemRegion empty_range = MemRegion(0, size_t(0)); // typecast size_t(0) is needed to resolve ambiguity
@@ -509,9 +512,10 @@ MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
   FlagSetting fs(AlwaysPreTouch, false);
 
   size_t commits = 0;
-  // Attempt to allocate towards the end of the heap.
-  HeapWord* start_addr = (HeapWord*)align_down(reserved.end() - word_size,
-                                               HeapRegion::min_region_size_in_words() * HeapWordSize);
+  // Attempt to allocate towards the end of the heap with the required alignment.
+  HeapWord* start_addr = (HeapWord*)align_down(reserved.end() - word_size, alignment);
+  // Align the memory range to the minimum region size as well.
+  start_addr = (HeapWord*)align_down(start_addr, HeapRegion::min_region_size_in_words() * HeapWordSize);
   MemRegion range = MemRegion(start_addr, word_size);
   if (!_hrm.allocate_containing_regions(range, &commits, workers())) {
     return empty_range;
@@ -549,10 +553,16 @@ MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
   return range;
 }
 
+void G1CollectedHeap::fixup_archive_heap_memory(MemRegion range) {
+  assert(!is_init_completed(), "Expect to be called at JVM init time");
+  fill_archive_regions_gap(range);
+  populate_archive_regions_bot_part(range);
+}
+
 // TODO -- this function should be removed -- all the G1 regions within the
 // range should be full, except for the last region. However, it's OK
 // for the last region (an "old" region) to be not completely full, right??
-void G1CollectedHeap::fill_archive_regions(MemRegion range) {
+void G1CollectedHeap::fill_archive_regions_gap(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   MemRegion reserved = _hrm.reserved();
 
@@ -640,7 +650,7 @@ void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion range) {
   }
 }
 
-void G1CollectedHeap::dealloc_archive_regions(MemRegion range) {
+void G1CollectedHeap::handle_failed_archive_heap_mapping(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   MemRegion reserved = _hrm.reserved();
   size_t size_used = 0;

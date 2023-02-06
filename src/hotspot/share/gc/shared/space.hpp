@@ -69,6 +69,7 @@ class FilteringClosure;
 
 class Space: public CHeapObj<mtGC> {
   friend class VMStructs;
+
  protected:
   HeapWord* _bottom;
   HeapWord* _end;
@@ -78,6 +79,10 @@ class Space: public CHeapObj<mtGC> {
 
   Space():
     _bottom(NULL), _end(NULL) { }
+
+ private:
+  // Allocation (return NULL if full).  Enforces mutual exclusion internally.
+  virtual HeapWord* par_allocate_aligned(size_t word_size, size_t alignment) = 0;
 
  public:
   // Accessors
@@ -203,7 +208,9 @@ class Space: public CHeapObj<mtGC> {
   virtual HeapWord* allocate(size_t word_size) = 0;
 
   // Allocation (return NULL if full).  Enforces mutual exclusion internally.
-  virtual HeapWord* par_allocate(size_t word_size) = 0;
+  HeapWord* par_allocate(size_t word_size, size_t alignment = 0) {
+    return par_allocate_aligned(word_size, alignment);
+  }
 
 #if INCLUDE_SERIALGC
   // Mark-sweep-compact support: all spaces can update pointers to objects
@@ -410,8 +417,11 @@ class ContiguousSpace: public CompactibleSpace {
   GenSpaceMangler* mangler() { return _mangler; }
 
   // Allocation helpers (return NULL if full).
-  inline HeapWord* allocate_impl(size_t word_size);
-  inline HeapWord* par_allocate_impl(size_t word_size);
+  HeapWord* allocate_impl(size_t word_size);
+  HeapWord* par_allocate_aligned_impl(size_t word_size, size_t alignement);
+
+ private:
+  virtual HeapWord* par_allocate_aligned(size_t word_size, size_t alignment) override;
 
  public:
   ContiguousSpace();
@@ -460,7 +470,6 @@ class ContiguousSpace: public CompactibleSpace {
 
   // Allocation (return NULL if full)
   HeapWord* allocate(size_t word_size) override;
-  HeapWord* par_allocate(size_t word_size) override;
 
   // Iteration
   void oop_iterate(OopIterateClosure* cl) override;
@@ -529,6 +538,10 @@ class TenuredSpace: public ContiguousSpace {
 
   // Mark sweep support
   size_t allowed_dead_ratio() const override;
+
+ private:
+  inline HeapWord* par_allocate_aligned(size_t word_size, size_t alignment) override;
+
  public:
   // Constructor
   TenuredSpace(BlockOffsetSharedArray* sharedOffsetArray,
@@ -543,7 +556,6 @@ class TenuredSpace: public ContiguousSpace {
 
   // Add offset table update.
   inline HeapWord* allocate(size_t word_size) override;
-  inline HeapWord* par_allocate(size_t word_size) override;
 
   // MarkSweep support phase3
   void initialize_threshold() override;
