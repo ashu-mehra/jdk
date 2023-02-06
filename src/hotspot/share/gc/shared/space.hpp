@@ -79,6 +79,9 @@ class Space: public CHeapObj<mtGC> {
   Space():
     _bottom(nullptr), _end(nullptr) { }
 
+  // Allocation (return NULL if full).  Enforces mutual exclusion internally.
+  virtual HeapWord* par_allocate_aligned_impl(size_t word_size, size_t alignment) = 0;
+
  public:
   // Accessors
   HeapWord* bottom() const         { return _bottom; }
@@ -202,8 +205,10 @@ class Space: public CHeapObj<mtGC> {
   // mutually exclusive access to the space.
   virtual HeapWord* allocate(size_t word_size) = 0;
 
-  // Allocation (return null if full).  Enforces mutual exclusion internally.
-  virtual HeapWord* par_allocate(size_t word_size) = 0;
+  // Allocation (return NULL if full).  Enforces mutual exclusion internally.
+  HeapWord* par_allocate(size_t word_size, size_t alignment = 0) {
+    return par_allocate_aligned_impl(word_size, alignment);
+  }
 
 #if INCLUDE_SERIALGC
   // Mark-sweep-compact support: all spaces can update pointers to objects
@@ -327,8 +332,8 @@ private:
   GenSpaceMangler* mangler() { return _mangler; }
 
   // Allocation helpers (return null if full).
-  inline HeapWord* allocate_impl(size_t word_size);
-  inline HeapWord* par_allocate_impl(size_t word_size);
+  HeapWord* allocate_impl(size_t word_size);
+  HeapWord* par_allocate_aligned_impl(size_t word_size, size_t alignement);
 
  public:
   ContiguousSpace();
@@ -441,7 +446,6 @@ private:
 
   // Allocation (return null if full)
   HeapWord* allocate(size_t word_size) override;
-  HeapWord* par_allocate(size_t word_size) override;
 
   // Iteration
   void oop_iterate(OopIterateClosure* cl) override;
@@ -503,6 +507,9 @@ class TenuredSpace: public ContiguousSpace {
 
   // Mark sweep support
   size_t allowed_dead_ratio() const override;
+
+  HeapWord* par_allocate_aligned_impl(size_t word_size, size_t alignment) override;
+
  public:
   // Constructor
   TenuredSpace(BlockOffsetSharedArray* sharedOffsetArray,
@@ -517,7 +524,6 @@ class TenuredSpace: public ContiguousSpace {
 
   // Add offset table update.
   inline HeapWord* allocate(size_t word_size) override;
-  inline HeapWord* par_allocate(size_t word_size) override;
 
   // MarkSweep support phase3
   void initialize_threshold() override;

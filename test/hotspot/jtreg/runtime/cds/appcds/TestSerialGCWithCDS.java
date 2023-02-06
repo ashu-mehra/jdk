@@ -175,7 +175,7 @@ public class TestSerialGCWithCDS {
     }
 
     static void checkExecOutput(boolean dumpWithSerial, boolean execWithSerial, OutputAnalyzer out) {
-        String errMsg = "Cannot use CDS heap data. UseG1GC is required for -XX:-UseCompressedOops";
+        String errMsg = "Cannot use CDS heap data. UseEpsilonGC or UseG1GC is required for -XX:-UseCompressedOops";
         if (Platform.is64bit() &&
             !Platform.isWindows() && // archive heap not supported on Windows.
             !dumpWithSerial && // Dumped with G1, so we have an archived heap

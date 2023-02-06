@@ -50,7 +50,7 @@ public:
 
   // Can this VM map archived heap region? Currently only G1+compressed{oops,cp}
   static bool can_map() {
-    CDS_JAVA_HEAP_ONLY(return (UseG1GC && UseCompressedClassPointers);)
+    CDS_JAVA_HEAP_ONLY(return ((UseEpsilonGC || UseG1GC) && UseCompressedClassPointers);)
     NOT_CDS_JAVA_HEAP(return false;)
   }
 
@@ -81,7 +81,14 @@ public:
     CDS_JAVA_HEAP_ONLY(return _is_mapped;)
     NOT_CDS_JAVA_HEAP_RETURN_(false);
   }
-
+  static void set_mapping_failed() {
+    CDS_JAVA_HEAP_ONLY(_mapping_failed = true;)
+    NOT_CDS_JAVA_HEAP_RETURN;
+  }
+  static bool is_mapping_failed() {
+    CDS_JAVA_HEAP_ONLY(return _mapping_failed;)
+    NOT_CDS_JAVA_HEAP_RETURN_(false);
+  }
   // NarrowOops stored in the CDS archive may use a different encoding scheme
   // than CompressedOops::{base,shift} -- see FileMapInfo::map_heap_region_impl.
   // To decode them, do not use CompressedOops::decode_not_null. Use this
@@ -116,6 +123,7 @@ private:
   static uintptr_t _loaded_heap_bottom;
   static uintptr_t _loaded_heap_top;
   static bool _loading_failed;
+  static bool _mapping_failed;
 
   // UseCompressedOops only: Used by decode_from_archive
   static bool    _narrow_oop_base_initialized;

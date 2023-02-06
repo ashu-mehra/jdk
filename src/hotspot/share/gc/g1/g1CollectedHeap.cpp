@@ -528,8 +528,11 @@ void G1CollectedHeap::iterate_regions_in_range(MemRegion range, const Func& func
   }
 }
 
-MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
+
+MemRegion G1CollectedHeap::alloc_archive_heap_memory(size_t word_size, size_t alignment) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
+  assert(is_object_aligned(word_size), "must be");
+  assert(is_object_aligned(alignment), "must be");
   MutexLocker x(Heap_lock);
   // Empty range is returned in case of failure.
   MemRegion empty_range = MemRegion(0, size_t(0)); // typecast size_t(0) is needed to resolve ambiguity
@@ -548,7 +551,11 @@ MemRegion G1CollectedHeap::alloc_archive_regions(size_t word_size) {
 
   size_t commits = 0;
   // Attempt to allocate towards the end of the heap.
-  HeapWord* start_addr = reserved.end() - align_up(word_size, HeapRegion::GrainWords);
+  HeapWord* start_addr = reserved.end() - word_size;
+  // Align the memory range as requested.
+  start_addr = (HeapWord*)align_down(start_addr, alignment);
+  // Now align the memory range to the region boundary.
+  start_addr = (HeapWord*)align_down(start_addr, HeapRegion::GrainBytes);
   MemRegion range = MemRegion(start_addr, word_size);
   HeapWord* last_address = range.last();
   if (!_hrm.allocate_containing_regions(range, &commits, workers())) {
@@ -586,7 +593,12 @@ void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion range) {
                            });
 }
 
-void G1CollectedHeap::dealloc_archive_regions(MemRegion range) {
+void G1CollectedHeap::fixup_archive_heap_memory(MemRegion range) {
+  assert(!is_init_completed(), "Expect to be called at JVM init time");
+  populate_archive_regions_bot_part(range);
+}
+
+void G1CollectedHeap::handle_failed_archive_heap_mapping(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   MemRegion reserved = _hrm.reserved();
   size_t size_used = 0;
@@ -612,10 +624,8 @@ void G1CollectedHeap::dealloc_archive_regions(MemRegion range) {
     shrink_count++;
   };
 
-  iterate_regions_in_range(range, dealloc_archive_region);
-
   if (shrink_count != 0) {
-    log_debug(gc, ergo, heap)("Attempt heap shrinking (CDS archive regions). Total size: " SIZE_FORMAT "B",
+    log_debug(gc, ergo, heap)("Attempt heap shrinking (archive regions). Total size: " SIZE_FORMAT "B",
                               HeapRegion::GrainWords * HeapWordSize * shrink_count);
     // Explicit uncommit.
     uncommit_regions(shrink_count);

@@ -52,6 +52,7 @@ uintptr_t ArchiveHeapLoader::_dumptime_base = UINTPTR_MAX;
 uintptr_t ArchiveHeapLoader::_dumptime_top = 0;
 intx ArchiveHeapLoader::_runtime_offset = 0;
 bool ArchiveHeapLoader::_loading_failed = false;
+bool ArchiveHeapLoader::_mapping_failed = false;
 
 // Support for mapped heap.
 bool      ArchiveHeapLoader::_mapped_heap_relocation_initialized = false;
@@ -79,7 +80,9 @@ void ArchiveHeapLoader::init_narrow_oop_decoding(address base, int shift) {
 
 void ArchiveHeapLoader::fixup_region() {
   FileMapInfo* mapinfo = FileMapInfo::current_info();
-  if (is_mapped()) {
+  if (is_mapping_failed()) {
+    mapinfo->handle_failed_mapping();
+  } else if (is_mapped()) {
     mapinfo->fixup_mapped_heap_region();
   } else if (_loading_failed) {
     fill_failed_loaded_heap();

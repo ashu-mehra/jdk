@@ -72,6 +72,9 @@
 #include "gc/g1/g1CollectedHeap.hpp"
 #include "gc/g1/heapRegion.hpp"
 #endif
+#if INCLUDE_EPSILONGC
+#include "gc/epsilon/epsilonHeap.hpp"
+#endif
 
 # include <sys/stat.h>
 # include <errno.h>
@@ -1987,7 +1990,7 @@ void FileMapInfo::map_or_load_heap_region() {
     } else {
       if (!UseCompressedOops && !ArchiveHeapLoader::can_map()) {
         // TODO - remove implicit knowledge of G1
-        log_info(cds)("Cannot use CDS heap data. UseG1GC is required for -XX:-UseCompressedOops");
+        log_info(cds)("Cannot use CDS heap data. UseEpsilonGC or UseG1GC is required for -XX:-UseCompressedOops");
       } else {
         log_info(cds)("Cannot use CDS heap data. UseEpsilonGC, UseG1GC, UseSerialGC or UseParallelGC are required.");
       }
@@ -2120,7 +2123,7 @@ bool FileMapInfo::map_heap_region() {
 }
 
 bool FileMapInfo::map_heap_region_impl() {
-  assert(UseG1GC, "the following code assumes G1");
+  assert(UseEpsilonGC || UseG1GC, "the following code should be used only by Epsilon or G1");
 
   FileMapRegion* r = region_at(MetaspaceShared::hp);
   size_t size = r->used();
@@ -2134,7 +2137,8 @@ bool FileMapInfo::map_heap_region_impl() {
   log_info(cds)("Preferred address to map heap data (to avoid relocation) is " INTPTR_FORMAT, p2i(requested_start));
 
   // allocate from java heap
-  _mapped_heap_memregion = G1CollectedHeap::heap()->alloc_archive_regions(word_size);
+  _mapped_heap_memregion = Universe::heap()->alloc_archive_heap_memory(word_size,
+                                                                       MetaspaceShared::core_region_alignment());
   if (_mapped_heap_memregion.start() == nullptr) {
     log_info(cds)("UseSharedSpaces: Unable to allocate java heap region for archive heap.");
     return false;
@@ -2147,7 +2151,7 @@ bool FileMapInfo::map_heap_region_impl() {
                               addr, _mapped_heap_memregion.byte_size(), r->read_only(),
                               r->allow_exec());
   if (base == nullptr || base != addr) {
-    dealloc_heap_region();
+    ArchiveHeapLoader::set_mapping_failed();
     log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
                   INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
                   p2i(addr), _mapped_heap_memregion.byte_size());
@@ -2156,7 +2160,7 @@ bool FileMapInfo::map_heap_region_impl() {
 
   r->set_mapped_base(base);
   if (VerifySharedSpaces && !r->check_region_crc()) {
-    dealloc_heap_region();
+    ArchiveHeapLoader::set_mapping_failed();
     log_info(cds)("UseSharedSpaces: mapped heap region is corrupt");
     return false;
   }
@@ -2179,7 +2183,7 @@ bool FileMapInfo::map_heap_region_impl() {
     char* bitmap_base = map_bitmap_region();
     if (bitmap_base == NULL) {
       log_info(cds)("CDS heap cannot be used because bitmap region cannot be mapped");
-      dealloc_heap_region();
+      ArchiveHeapLoader::set_mapping_failed();
       unmap_region(MetaspaceShared::hp);
       _heap_pointers_need_patching = false;
       return false;
@@ -2216,18 +2220,13 @@ void FileMapInfo::patch_heap_embedded_pointers() {
 void FileMapInfo::fixup_mapped_heap_region() {
   if (ArchiveHeapLoader::is_mapped()) {
     assert(!_mapped_heap_memregion.is_empty(), "sanity");
-
-    // Populate the archive regions' G1BlockOffsetTableParts. That ensures
-    // fast G1BlockOffsetTablePart::block_start operations for any given address
-    // within the archive regions when trying to find start of an object
-    // (e.g. during card table scanning).
-    G1CollectedHeap::heap()->populate_archive_regions_bot_part(_mapped_heap_memregion);
+    Universe::heap()->fixup_archive_heap_memory(_mapped_heap_memregion);
   }
 }
 
-// dealloc the archive regions from java heap
-void FileMapInfo::dealloc_heap_region() {
-  G1CollectedHeap::heap()->dealloc_archive_regions(_mapped_heap_memregion);
+void FileMapInfo::handle_failed_mapping() {
+  assert(UseEpsilonGC || UseG1GC, "this is applicable only for Epsilon or G1");
+  Universe::heap()->handle_failed_archive_heap_mapping(_mapped_heap_memregion);
 }
 #endif // INCLUDE_CDS_JAVA_HEAP
 
