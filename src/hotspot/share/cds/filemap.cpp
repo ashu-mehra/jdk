@@ -72,6 +72,9 @@
 #include "gc/g1/g1CollectedHeap.hpp"
 #include "gc/g1/heapRegion.hpp"
 #endif
+#if INCLUDE_EPSILONGC
+#include "gc/epsilon/epsilonHeap.hpp"
+#endif
 
 # include <sys/stat.h>
 # include <errno.h>
@@ -2066,7 +2069,7 @@ void FileMapInfo::map_or_load_heap_regions() {
     } else {
       if (!UseCompressedOops && !ArchiveHeapLoader::can_map()) {
         // TODO - remove implicit knowledge of G1
-        log_info(cds)("Cannot use CDS heap data. UseG1GC is required for -XX:-UseCompressedOops");
+        log_info(cds)("Cannot use CDS heap data. UseEpsilonGC or UseG1GC is required for -XX:-UseCompressedOops");
       } else {
         log_info(cds)("Cannot use CDS heap data. UseEpsilonGC, UseG1GC, UseSerialGC or UseParallelGC are required.");
       }
@@ -2188,7 +2191,7 @@ address FileMapInfo::heap_region_mapped_address(FileMapRegion* r) {
 // regions may be added. GC may mark and update references in the mapped
 // open archive objects.
 void FileMapInfo::map_heap_regions_impl() {
-  assert(UseG1GC, "the following code assumes G1");
+  assert(UseEpsilonGC || UseG1GC, "the following code assumes Epsilon or G1");
 
   FileMapRegion* r = region_at(MetaspaceShared::hp);
   size_t size = r->used();
@@ -2202,7 +2205,8 @@ void FileMapInfo::map_heap_regions_impl() {
   log_info(cds)("Preferred address to map heap data (to avoid relocation) is " INTPTR_FORMAT, p2i(requested_start));
 
   // allocate from java heap
-  mapped_heap_memregion = G1CollectedHeap::heap()->alloc_archive_regions(word_size);
+  mapped_heap_memregion = Universe::heap()->alloc_archive_heap_memory(word_size,
+                                                                  MetaspaceShared::core_region_alignment());
   if (mapped_heap_memregion.start() == nullptr) {
     log_info(cds)("UseSharedSpaces: Unable to allocate java heap region for archive heap.");
     return;
@@ -2215,7 +2219,7 @@ void FileMapInfo::map_heap_regions_impl() {
                               addr, mapped_heap_memregion.byte_size(), r->read_only(),
                               r->allow_exec());
   if (base == nullptr || base != addr) {
-    dealloc_heap_region();
+    ArchiveHeapLoader::set_mapping_failed();
     log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
                   INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
                   p2i(addr), mapped_heap_memregion.byte_size());
@@ -2223,7 +2227,7 @@ void FileMapInfo::map_heap_regions_impl() {
   }
 
   if (VerifySharedSpaces && !region_crc_check(addr, mapped_heap_memregion.byte_size(), r->crc())) {
-    dealloc_heap_region();
+    ArchiveHeapLoader::set_mapping_failed();
     log_info(cds)("UseSharedSpaces: mapped heap region is corrupt");
     return;
   }
@@ -2248,7 +2252,7 @@ void FileMapInfo::map_heap_regions_impl() {
     char* bitmap_base = map_bitmap_region();
     if (bitmap_base == NULL) {
       log_info(cds)("CDS heap cannot be used because bitmap region cannot be mapped");
-      dealloc_heap_region();
+      ArchiveHeapLoader::set_mapping_failed();
       unmap_region(MetaspaceShared::hp);
       _heap_pointers_need_patching = false;
       return;
@@ -2297,19 +2301,14 @@ void FileMapInfo::fixup_mapped_heap_regions() {
   // Make the mapped heap region parseable
   if (ArchiveHeapLoader::is_mapped()) {
     assert(!mapped_heap_memregion.is_empty(), "sanity");
-    G1CollectedHeap::heap()->fill_archive_regions(mapped_heap_memregion);
-
-    // Populate the archive regions' G1BlockOffsetTableParts. That ensures
-    // fast G1BlockOffsetTablePart::block_start operations for any given address
-    // within the archive regions when trying to find start of an object
-    // (e.g. during card table scanning).
-    G1CollectedHeap::heap()->populate_archive_regions_bot_part(mapped_heap_memregion);
+    Universe::heap()->fixup_archive_heap_memory(mapped_heap_memregion);
   }
 }
 
 // dealloc the archive regions from java heap
-void FileMapInfo::dealloc_heap_region() {
-  G1CollectedHeap::heap()->dealloc_archive_regions(mapped_heap_memregion);
+void FileMapInfo::handle_failed_mapping() {
+  assert(UseEpsilonGC || UseG1GC, "Only Epsilon or G1 gc is supported");
+  Universe::heap()->handle_failed_archive_heap_mapping(mapped_heap_memregion);
 }
 #endif // INCLUDE_CDS_JAVA_HEAP
 

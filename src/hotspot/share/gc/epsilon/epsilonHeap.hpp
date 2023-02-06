@@ -49,6 +49,7 @@ private:
   int64_t _decay_time_ns;
   volatile size_t _last_counter_update;
   volatile size_t _last_heap_print;
+  HeapWord* _top_at_archive_alloc;
 
 public:
   static EpsilonHeap* heap();
@@ -91,7 +92,7 @@ public:
   }
 
   // Allocation
-  HeapWord* allocate_work(size_t size, bool verbose = true);
+  HeapWord* allocate_work(size_t size, bool verbose = true, size_t alignment = 0);
   HeapWord* mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) override;
   HeapWord* allocate_new_tlab(size_t min_size,
                               size_t requested_size,
@@ -132,6 +133,12 @@ public:
   MemRegion reserved_region() const { return _reserved; }
   bool is_in_reserved(const void* addr) const { return _reserved.contains(addr); }
 
+  MemRegion alloc_archive_heap_memory(size_t word_size, size_t alignment) override;
+  // In case of failure to map the the heap region corresponding to CDS archive area
+  // fill the heap region with dummy objects.
+  void handle_failed_archive_heap_mapping(MemRegion range) override;
+  void fixup_archive_heap_memory(MemRegion range) override;
+
   // Support for loading objects from CDS archive into the heap
   bool can_load_archived_objects() const override { return UseCompressedOops; }
   HeapWord* allocate_loaded_archive_space(size_t size) override;
@@ -141,6 +148,10 @@ public:
   bool print_location(outputStream* st, void* addr) const override;
 
 private:
+  void set_top_at_archive_allocation(HeapWord* top) {
+    _top_at_archive_alloc = top;
+  }
+  HeapWord* top_at_archive_allocation() const { return _top_at_archive_alloc; }
   void print_heap_info(size_t used) const;
   void print_metaspace_info() const;
 

@@ -456,6 +456,7 @@ public:
   void  unmap_regions(int regions[], int num_regions);
   void  map_or_load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN;
   void  fixup_mapped_heap_regions() NOT_CDS_JAVA_HEAP_RETURN;
+  void  handle_failed_mapping() NOT_CDS_JAVA_HEAP_RETURN;
   void  patch_heap_embedded_pointers() NOT_CDS_JAVA_HEAP_RETURN;
   void  patch_heap_embedded_pointers(MemRegion* regions, int num_regions,
                                      int first_region_idx) NOT_CDS_JAVA_HEAP_RETURN;
@@ -565,7 +566,6 @@ public:
   bool  validate_boot_class_paths() NOT_CDS_RETURN_(false);
   bool  validate_app_class_paths(int shared_app_paths_len) NOT_CDS_RETURN_(false);
   bool  region_crc_check(char* buf, size_t size, int expected_crc) NOT_CDS_RETURN_(false);
-  void  dealloc_heap_region() NOT_CDS_JAVA_HEAP_RETURN;
   bool  can_use_heap_regions();
   bool  load_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
   bool  map_heap_regions() NOT_CDS_JAVA_HEAP_RETURN_(false);
