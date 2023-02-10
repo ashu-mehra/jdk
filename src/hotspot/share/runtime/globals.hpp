@@ -1975,6 +1975,9 @@ const int ObjectAlignmentInBytes = 8;
           "1: monitors & legacy stack-locking (LM_LEGACY, default), "       \
           "2: monitors & new lightweight locking (LM_LIGHTWEIGHT)")         \
           range(0, 2)                                                       \
+                                                                            \
+  develop(bool, DumpMethodData, true,                                       \
+          "Dump MethodData in CDS archive")                                 \
 
 // end of RUNTIME_FLAGS
 
