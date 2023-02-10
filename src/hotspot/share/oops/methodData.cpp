@@ -1211,7 +1211,7 @@ void MethodData::post_initialize(BytecodeStream* stream) {
 MethodData::MethodData(const methodHandle& method)
   : _method(method()),
     // Holds Compile_lock
-    _extra_data_lock(Mutex::safepoint-2, "MDOExtraData_lock"),
+    _extra_data_lock(new Mutex(Mutex::safepoint-2, "MDOExtraData_lock")),
     _compiler_counters(),
     _parameters_type_data_di(parameters_uninitialized) {
   initialize();
@@ -1453,7 +1453,7 @@ ProfileData* MethodData::bci_to_extra_data(int bci, Method* m, bool create_if_mi
   }
 
   if (create_if_missing && dp < end) {
-    MutexLocker ml(&_extra_data_lock);
+    MutexLocker ml(_extra_data_lock);
     // Check again now that we have the lock. Another thread may
     // have added extra data entries.
     ProfileData* result = bci_to_extra_data_helper(bci, m, dp, false);
@@ -1682,8 +1682,15 @@ bool MethodData::profile_parameters_for_method(const methodHandle& m) {
 }
 
 void MethodData::metaspace_pointers_do(MetaspaceClosure* it) {
-  log_trace(cds)("Iter(MethodData): %p", this);
+  log_trace(cds)("Iter(MethodData): %p (%s::%s)", this,
+                 method()->method_holder()->external_name(),
+                 method()->name()->as_C_string() );
   it->push(&_method);
+
+  ProfileData* data = first_data();
+  for ( ; is_valid(data); data = next_data(data)) {
+    data->metaspace_pointers_do(it);
+  }
 }
 
 void MethodData::clean_extra_data_helper(DataLayout* dp, int shift, bool reset) {

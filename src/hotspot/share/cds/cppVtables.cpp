@@ -61,7 +61,8 @@
   f(InstanceStackChunkKlass) \
   f(Method) \
   f(ObjArrayKlass) \
-  f(TypeArrayKlass)
+  f(TypeArrayKlass) \
+  f(MethodData)
 
 class CppVtableInfo {
   intptr_t _vtable_size;
@@ -256,11 +257,16 @@ intptr_t* CppVtables::get_archived_vtable(MetaspaceObj::Type msotype, address ob
   case MetaspaceObj::RecordComponentType:
     // These have no vtables.
     break;
+#if 0
   case MetaspaceObj::MethodDataType:
     // We don't archive MethodData <-- should have been removed in removed_unsharable_info
     ShouldNotReachHere();
     break;
+#endif
   default:
+    if (!DumpMethodData && msotype == MetaspaceObj::MethodDataType) {
+      fatal("Cannot dump MethodData when DumpMethodData is false");
+    }
     for (kind = 0; kind < _num_cloned_vtable_kinds; kind ++) {
       if (vtable_of((Metadata*)obj) == _orig_cpp_vtptrs[kind]) {
         break;

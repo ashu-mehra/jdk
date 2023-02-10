@@ -388,7 +388,7 @@ Symbol* Method::klass_name() const {
 }
 
 void Method::metaspace_pointers_do(MetaspaceClosure* it) {
-  log_trace(cds)("Iter(Method): %p", this);
+  log_trace(cds)("Iter(Method): %p (%s::%s)", this, method_holder()->external_name(), name()->as_C_string());
 
   if (!method_holder()->is_rewritten()) {
     it->push(&_constMethod, MetaspaceClosure::_writable);
@@ -413,6 +413,11 @@ void Method::remove_unshareable_info() {
 
 void Method::restore_unshareable_info(TRAPS) {
   assert(is_method() && is_valid_method(this), "ensure C++ vtable is restored");
+  if (DumpMethodData) {
+    if (method_data() != nullptr) {
+      method_data()->restore_unshareable_info(CHECK);
+    }
+  }
 }
 #endif
 
@@ -1192,7 +1197,13 @@ void Method::unlink_method() {
   }
   NOT_PRODUCT(set_compiled_invocation_count(0);)
 
-  set_method_data(nullptr);
+  if (DumpMethodData) {
+    if (method_data() != nullptr) {
+      method_data()->remove_unshareable_info();
+    }
+  } else {
+    set_method_data(nullptr);
+  }
   clear_method_counters();
 }
 #endif

@@ -26,6 +26,7 @@
 #define SHARE_OOPS_METHODDATA_HPP
 
 #include "interpreter/bytecodes.hpp"
+#include "memory/metaspaceClosure.hpp"
 #include "oops/metadata.hpp"
 #include "oops/method.hpp"
 #include "oops/oop.hpp"
@@ -478,6 +479,7 @@ public:
 
   void print_shared(outputStream* st, const char* name, const char* extra) const;
   void tab(outputStream* st, bool first = false) const;
+  virtual void metaspace_pointers_do(MetaspaceClosure* it) {}
 };
 
 // BitData
@@ -841,6 +843,15 @@ public:
   void clean_weak_klass_links(bool always_clean);
 
   void print_data_on(outputStream* st) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    for (int i = 0; i < _number_of_entries; i++) {
+      if (valid_klass(type(i))) {
+        intptr_t type_ptr = (intptr_t)_pd->dp() + in_bytes(type_offset(i));
+        it->push((Klass**)type_ptr);
+      }
+    }
+  }
 };
 
 // Type entry used for return from a call. A single cell to record the
@@ -884,6 +895,13 @@ public:
   void clean_weak_klass_links(bool always_clean);
 
   void print_data_on(outputStream* st) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    if (valid_klass(type())) {
+      intptr_t type_ptr = (intptr_t)_pd->dp() + in_bytes(type_offset());
+      it->push((Klass**)type_ptr);
+    }
+  }
 };
 
 // Entries to collect type information at a call: contains arguments
@@ -1075,6 +1093,14 @@ public:
   }
 
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
+  virtual void metaspace_pointers_do(MetaspaceClosure* it) {
+    if (has_arguments()) {
+      _args.metaspace_pointers_do(it);
+    }
+    if (has_return()) {
+      _ret.metaspace_pointers_do(it);
+    }
+  }
 };
 
 // ReceiverTypeData
@@ -1215,6 +1241,13 @@ public:
 
   void print_receiver_data_on(outputStream* st) const;
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    for (uint row = 0; row < row_limit(); row++) {
+      intptr_t receiver_addr = (intptr_t)data() + in_bytes(receiver_offset(row));
+      it->push((Klass**)receiver_addr);
+    }
+  }
 };
 
 // VirtualCallData
@@ -1247,6 +1280,10 @@ public:
 
   void print_method_data_on(outputStream* st) const NOT_JVMCI_RETURN;
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    ReceiverTypeData::metaspace_pointers_do(it);
+  }
 };
 
 // VirtualCallTypeData
@@ -1379,6 +1416,16 @@ public:
   }
 
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    VirtualCallData::metaspace_pointers_do(it);
+    if (has_arguments()) {
+      _args.metaspace_pointers_do(it);
+    }
+    if (has_return()) {
+      _args.metaspace_pointers_do(it);
+    }
+  }
 };
 
 // RetData
@@ -1957,10 +2004,13 @@ private:
   // Cached hint for bci_to_dp and bci_to_data
   int _hint_di;
 
-  Mutex _extra_data_lock;
+  Mutex *_extra_data_lock;
 
   MethodData(const methodHandle& method);
 public:
+  // CDS and vtbl checking can create an empty Method to get vtbl pointer.
+  MethodData() : _extra_data_lock(nullptr) {}
+
   static MethodData* allocate(ClassLoaderData* loader_data, const methodHandle& method, TRAPS);
 
   virtual bool is_methodData() const { return true; }
@@ -2449,6 +2499,15 @@ public:
   virtual void metaspace_pointers_do(MetaspaceClosure* iter);
   virtual MetaspaceObj::Type type() const { return MethodDataType; }
 
+#if INCLUDE_CDS
+  void remove_unshareable_info() {
+    _extra_data_lock = nullptr;
+  }
+  void restore_unshareable_info(TRAPS) {
+    _extra_data_lock = new Mutex(Mutex::safepoint-2, "MDOExtraData_lock");
+  }
+#endif
+
   // Deallocation support
   void deallocate_contents(ClassLoaderData* loader_data);
   void release_C_heap_structures();
@@ -2478,7 +2537,7 @@ public:
 
   void clean_method_data(bool always_clean);
   void clean_weak_method_links();
-  Mutex* extra_data_lock() { return &_extra_data_lock; }
+  Mutex* extra_data_lock() { return _extra_data_lock; }
 };
 
 #endif // SHARE_OOPS_METHODDATA_HPP

@@ -526,8 +526,9 @@ ArchiveBuilder::FollowMode ArchiveBuilder::get_follow_mode(MetaspaceClosure::Ref
   if (MetaspaceShared::is_in_shared_metaspace(obj)) {
     // Don't dump existing shared metadata again.
     return point_to_it;
-  } else if (ref->msotype() == MetaspaceObj::MethodDataType ||
-             ref->msotype() == MetaspaceObj::MethodCountersType) {
+  } else if (!DumpMethodData &&
+             (ref->msotype() == MetaspaceObj::MethodDataType ||
+              ref->msotype() == MetaspaceObj::MethodCountersType)) {
     return set_to_null;
   } else {
     if (ref->msotype() == MetaspaceObj::ClassType) {
