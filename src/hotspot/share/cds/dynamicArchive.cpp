@@ -42,6 +42,7 @@
 #include "memory/metaspaceClosure.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/klass.inline.hpp"
+#include "oops/methodData.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/os.hpp"
 #include "runtime/sharedRuntime.hpp"
@@ -119,6 +120,8 @@ public:
     // save dumptime tables
     SystemDictionaryShared::clone_dumptime_tables();
 
+    MethodDataTable::initialize();
+
     init_header();
     gather_source_objs();
     reserve_buffer();
@@ -144,10 +147,15 @@ public:
       ArchiveBuilder::OtherROAllocMark mark;
       SystemDictionaryShared::write_to_archive(false);
 
+      if (DumpMethodData) {
+        MethodDataTable::dump();
+      }
+
       serialized_data = ro_region()->top();
       WriteClosure wc(ro_region());
       SymbolTable::serialize_shared_table_header(&wc, false);
       SystemDictionaryShared::serialize_dictionary_headers(&wc, false);
+      MethodDataTable::serialize_shared_table_header(&wc);
     }
 
     verify_estimate_size(_estimated_hashtable_bytes, "Hashtables");
@@ -159,6 +167,11 @@ public:
 
     log_info(cds)("Adjust lambda proxy class dictionary");
     SystemDictionaryShared::adjust_lambda_proxy_class_dictionary();
+
+    if (DumpMethodData) {
+      log_info(cds)("Make MethodData shareable");
+      MethodDataTable::make_shareable();
+    }
 
     relocate_to_requested();
 
@@ -177,6 +190,9 @@ public:
   virtual void iterate_roots(MetaspaceClosure* it, bool is_relocating_pointers) {
     FileMapInfo::metaspace_pointers_do(it);
     SystemDictionaryShared::dumptime_classes_do(it);
+    if (DumpMethodData) {
+      MethodDataTable::metaspace_pointers_do(it);
+    }
   }
 };
 

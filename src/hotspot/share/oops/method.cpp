@@ -388,7 +388,10 @@ Symbol* Method::klass_name() const {
 }
 
 void Method::metaspace_pointers_do(MetaspaceClosure* it) {
-  log_trace(cds)("Iter(Method): %p (%s::%s)", this, method_holder()->external_name(), name()->as_C_string());
+  {
+    ResourceMark rm;
+    log_trace(cds)("Iter(Method): %p (%s::%s)", this, method_holder()->external_name(), name()->as_C_string());
+  }
 
   if (!method_holder()->is_rewritten()) {
     it->push(&_constMethod, MetaspaceClosure::_writable);
@@ -413,10 +416,24 @@ void Method::remove_unshareable_info() {
 
 void Method::restore_unshareable_info(TRAPS) {
   assert(is_method() && is_valid_method(this), "ensure C++ vtable is restored");
-  if (DumpMethodData) {
-    if (method_data() != nullptr) {
-      method_data()->restore_unshareable_info(CHECK);
+  if (method_data() != nullptr) {
+    ResourceMark rm(THREAD);
+    log_trace(cds)("Method %s::%s%s has MethodData at %p",
+                   method_holder()->external_name(), name()->as_C_string(),
+                   signature()->as_C_string(), method_data());
+    method_data()->restore_unshareable_info(CHECK);
+  } else {
+    MethodData* md = MethodDataTable::find(this);
+    if (md) {
+      Atomic::replace_if_null(&_method_data, md);
     }
+  }
+  if (PrintMethodDataFromCDS && method_data()) {
+    ttyLocker ttyl;
+    tty->print_cr("------------------------------------------------------------------------");
+    tty->print_cr("  mdo size: %d bytes", method_data()->size_in_bytes());
+    print_codes();
+    tty->print_cr("------------------------------------------------------------------------");
   }
 }
 #endif
@@ -1197,11 +1214,9 @@ void Method::unlink_method() {
   }
   NOT_PRODUCT(set_compiled_invocation_count(0);)
 
-  if (DumpMethodData) {
-    if (method_data() != nullptr) {
-      method_data()->remove_unshareable_info();
-    }
-  } else {
+  // No need to call remove_unshareable_info on MethodData.
+  // It will be done by MethodDataTable::make_shareable() later.
+  if (!DynamicDumpSharedSpaces || !DumpMethodData) {
     set_method_data(nullptr);
   }
   clear_method_counters();

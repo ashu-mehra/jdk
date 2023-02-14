@@ -1981,6 +1981,9 @@ const int ObjectAlignmentInBytes = 8;
                                                                             \
   develop(bool, DumpMethodData, true,                                       \
           "Dump MethodData in CDS archive")                                 \
+                                                                            \
+  develop(bool, PrintMethodDataFromCDS, true,                               \
+          "Print MethodData when it is loaded from CDS archive")            \
 
 // end of RUNTIME_FLAGS
 

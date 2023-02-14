@@ -275,8 +275,10 @@ private:
   void update_special_refs();
   void relocate_embedded_pointers(SourceObjList* src_objs);
 
-  bool is_excluded(Klass* k);
   void clean_up_src_obj_table();
+
+public:
+  bool is_excluded(Klass* k);
 
 protected:
   virtual void iterate_roots(MetaspaceClosure* it, bool is_relocating_pointers) = 0;

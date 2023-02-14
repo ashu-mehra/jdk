@@ -23,7 +23,10 @@
  */
 
 #include "precompiled.hpp"
+#include "cds/archiveBuilder.hpp"
 #include "ci/ciMethodData.hpp"
+#include "classfile/classLoaderDataGraph.hpp"
+#include "classfile/systemDictionaryShared.hpp"
 #include "classfile/vmSymbols.hpp"
 #include "compiler/compilationPolicy.hpp"
 #include "compiler/compilerDefinitions.inline.hpp"
@@ -33,6 +36,7 @@
 #include "interpreter/linkResolver.hpp"
 #include "memory/metaspaceClosure.hpp"
 #include "memory/resourceArea.hpp"
+#include "memory/iterator.hpp"
 #include "oops/klass.inline.hpp"
 #include "oops/methodData.inline.hpp"
 #include "prims/jvmtiRedefineClasses.hpp"
@@ -657,12 +661,17 @@ void SpeculativeTrapData::print_data_on(outputStream* st, const char* extra) con
 // A MethodData* holds information which has been collected about
 // a method.
 
+GrowableArray<MethodData*> MethodDataTable::_method_data_table(4*1024, mtClassShared);
+MethodDataSharedTable MethodDataTable::_method_data_shared_table;
+
 MethodData* MethodData::allocate(ClassLoaderData* loader_data, const methodHandle& method, TRAPS) {
   assert(!THREAD->owns_locks(), "Should not own any locks");
   int size = MethodData::compute_allocation_size_in_words(method);
-
-  return new (loader_data, size, MetaspaceObj::MethodDataType, THREAD)
-    MethodData(method);
+  MethodData* md = new (loader_data, size, MetaspaceObj::MethodDataType, THREAD)MethodData(method);
+  if (DynamicDumpSharedSpaces && DumpMethodData) {
+    //MethodDataTable::add(md);
+  }
+  return md;
 }
 
 int MethodData::bytecode_cell_count(Bytecodes::Code code) {
@@ -1682,9 +1691,12 @@ bool MethodData::profile_parameters_for_method(const methodHandle& m) {
 }
 
 void MethodData::metaspace_pointers_do(MetaspaceClosure* it) {
-  log_trace(cds)("Iter(MethodData): %p (%s::%s)", this,
+  {
+    ResourceMark rm;
+    log_trace(cds)("Iter(MethodData): %p (%s::%s)", this,
                  method()->method_holder()->external_name(),
-                 method()->name()->as_C_string() );
+                 method()->name()->as_C_string());
+  }
   it->push(&_method);
 
   ProfileData* data = first_data();
@@ -1837,4 +1849,113 @@ void MethodData::release_C_heap_structures() {
 #if INCLUDE_JVMCI
   FailedSpeculation::free_failed_speculations(get_failed_speculations_address());
 #endif
+}
+
+// ==================================================================
+// MethodDataTable
+
+
+void collect_method_data(Method* method) {
+  if (method->method_data()) {
+    MethodDataTable::add(method->method_data());
+  }
+}
+
+void filter_shared_class(Klass* klass) {
+  if (klass->is_instance_klass() &&
+      (klass->is_shared() || !ArchiveBuilder::current()->is_excluded(klass))) {
+    InstanceKlass* iklass = (InstanceKlass*)klass;
+    iklass->methods_do(collect_method_data);
+  }
+}
+
+void MethodDataTable::initialize() {
+  ClassLoaderDataGraph::classes_do(filter_shared_class);
+}
+
+void MethodDataTable::add(MethodData* md) {
+  _method_data_table.append(md);
+}
+
+size_t MethodDataTable::estimate_shared_table_size() {
+  return CompactHashtableWriter::estimate_size(_method_data_table.length());
+}
+
+void MethodDataTable::make_shareable() {
+  for (int i = 0; i < _method_data_table.length(); i++) {
+    MethodData* md = _method_data_table.at(i);
+    md->remove_unshareable_info();
+  }
+}
+
+void MethodDataTable::metaspace_pointers_do(MetaspaceClosure* it) {
+  for (int i = 0; i < _method_data_table.length(); i++) {
+    it->push(_method_data_table.adr_at(i));
+  }
+}
+
+class MethodDataTableCopier {
+private:
+  CompactHashtableWriter* _writer;
+  ArchiveBuilder* _builder;
+public:
+  MethodDataTableCopier(CompactHashtableWriter* writer)
+    : _writer(writer), _builder(ArchiveBuilder::current()) {}
+
+  void process(MethodData* method_data) {
+    Method* method = method_data->method();
+    unsigned int hash = SystemDictionaryShared::hash_for_shared_dictionary((address)method);
+    u4 delta = _builder->buffer_to_offset_u4((address)method_data);
+    LogMessage(cds, hashtables) msg;
+    if (msg.is_info()) {
+      ResourceMark rm;
+      msg.info("MethodDataTable entry for %s::%s%s : (%u, %u)",
+               method->method_holder()->external_name(),
+               method->name()->as_C_string(),
+               method->signature()->as_C_string(),
+               hash, delta);
+    }
+    _writer->add(hash, delta);
+    if (msg.is_info()) {
+      ResourceMark rm;
+      msg.info("method data table: %s::%s%s",
+               method->method_holder()->external_name(),
+               method->name()->as_C_string(),
+               method->signature()->as_C_string());
+    }
+  }
+};
+
+void MethodDataTable::dump() {
+  CompactHashtableStats stats;
+  _method_data_shared_table.reset();
+  CompactHashtableWriter writer(_method_data_table.length(), &stats);
+  MethodDataTableCopier copier(&writer);
+  for (int i = 0; i < _method_data_table.length(); i++) {
+    MethodData* md = _method_data_table.at(i);
+    copier.process(md);
+  }
+  writer.dump(&_method_data_shared_table, "method data table");
+}
+
+void MethodDataTable::serialize_shared_table_header(SerializeClosure* soc) {
+  _method_data_shared_table.serialize_header(soc);
+}
+
+MethodData* MethodDataTable::find(Method* method) {
+  unsigned int hash = SystemDictionaryShared::hash_for_shared_dictionary_quick(method);
+  const MethodData* md = _method_data_shared_table.lookup(method, hash, 0 /* unused */);
+  if (md) {
+    assert(md->method() == method, "sanity check");
+    LogMessage(cds, hashtables) msg;
+    if (msg.is_info()) {
+      ResourceMark rm;
+      msg.info("MethodDataTable::find for %s::%s%s with hash=%u returned %p",
+               method->method_holder()->external_name(),
+               method->name()->as_C_string(),
+               method->signature()->as_C_string(),
+               hash, md);
+    }
+  }
+  return (MethodData*)md;
 }

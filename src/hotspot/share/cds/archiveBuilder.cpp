@@ -41,6 +41,7 @@
 #include "memory/memRegion.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/instanceKlass.hpp"
+#include "oops/methodData.hpp"
 #include "oops/objArrayKlass.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oopHandle.inline.hpp"
@@ -308,7 +309,11 @@ size_t ArchiveBuilder::estimate_archive_size() {
   // size of the symbol table and two dictionaries, plus the RunTimeClassInfo's
   size_t symbol_table_est = SymbolTable::estimate_size_for_archive();
   size_t dictionary_est = SystemDictionaryShared::estimate_size_for_archive();
-  _estimated_hashtable_bytes = symbol_table_est + dictionary_est;
+  size_t md_table_est = 0;
+  if (DumpMethodData) {
+    md_table_est = MethodDataTable::estimate_shared_table_size();
+  }
+  _estimated_hashtable_bytes = symbol_table_est + dictionary_est + md_table_est;
 
   size_t total = 0;
 
@@ -318,8 +323,8 @@ size_t ArchiveBuilder::estimate_archive_size() {
   // allow fragmentation at the end of each dump region
   total += _total_dump_regions * MetaspaceShared::core_region_alignment();
 
-  log_info(cds)("_estimated_hashtable_bytes = " SIZE_FORMAT " + " SIZE_FORMAT " = " SIZE_FORMAT,
-                symbol_table_est, dictionary_est, _estimated_hashtable_bytes);
+  log_info(cds)("_estimated_hashtable_bytes = " SIZE_FORMAT " + " SIZE_FORMAT " + " SIZE_FORMAT " = " SIZE_FORMAT,
+                symbol_table_est, dictionary_est, md_table_est, _estimated_hashtable_bytes);
   log_info(cds)("_estimated_metaspaceobj_bytes = " SIZE_FORMAT, _estimated_metaspaceobj_bytes);
   log_info(cds)("total estimate bytes = " SIZE_FORMAT, total);
 
@@ -648,7 +653,8 @@ void ArchiveBuilder::make_shallow_copy(DumpRegion *dump_region, SourceObjInfo* s
     ArchivePtrMarker::mark_pointer((address*)dest);
   }
 
-  log_trace(cds)("Copy: " PTR_FORMAT " ==> " PTR_FORMAT " %d", p2i(src), p2i(dest), bytes);
+  log_trace(cds)("Copy(%s): " PTR_FORMAT " ==> " PTR_FORMAT " %d",
+                 MetaspaceObj::type_name(ref->msotype()), p2i(src), p2i(dest), bytes);
   src_info->set_buffered_addr((address)dest);
 
   _alloc_stats.record(ref->msotype(), int(newtop - oldtop), src_info->read_only());
