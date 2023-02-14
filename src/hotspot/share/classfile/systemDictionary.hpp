@@ -175,7 +175,6 @@ class SystemDictionary : AllStatic {
                                                          Symbol* class_name,
                                                          Handle class_loader);
 
-  static void classes_do(MetaspaceClosure* it);
   // Iterate over all methods in all klasses
 
   static void methods_do(void f(Method*));

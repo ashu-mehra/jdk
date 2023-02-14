@@ -25,6 +25,7 @@
 #ifndef SHARE_OOPS_METHODDATA_HPP
 #define SHARE_OOPS_METHODDATA_HPP
 
+#include "classfile/compactHashtable.hpp"
 #include "interpreter/bytecodes.hpp"
 #include "memory/metaspaceClosure.hpp"
 #include "oops/metadata.hpp"
@@ -1423,7 +1424,7 @@ public:
       _args.metaspace_pointers_do(it);
     }
     if (has_return()) {
-      _args.metaspace_pointers_do(it);
+      _ret.metaspace_pointers_do(it);
     }
   }
 };
@@ -2538,6 +2539,35 @@ public:
   void clean_method_data(bool always_clean);
   void clean_weak_method_links();
   Mutex* extra_data_lock() { return _extra_data_lock; }
+
+  static bool EQUALS(const MethodData* value, Method* key, int len_unused) {
+    log_info(cds, hashtables)("MethodData::EQUALS value: %p, value-name=%p, key: %p",
+                              value, value->method()->name(), key);
+    return (value->method() == key);
+  }
+};
+
+class SerializeClosure; // forward declaration
+
+class MethodDataSharedTable : public OffsetCompactHashtable<
+  Method*,
+  const MethodData*,
+  MethodData::EQUALS> {};
+
+class MethodDataTable : AllStatic {
+private:
+  static GrowableArray<MethodData*> _method_data_table;
+  static MethodDataSharedTable _method_data_shared_table;
+
+public:
+  static void initialize();
+  static void add(MethodData* md);
+  static size_t estimate_shared_table_size();
+  static void make_shareable();
+  static void metaspace_pointers_do(MetaspaceClosure* it);
+  static void dump();
+  static void serialize_shared_table_header(SerializeClosure* soc);
+  static MethodData* find(Method* method);
 };
 
 #endif // SHARE_OOPS_METHODDATA_HPP

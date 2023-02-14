@@ -49,7 +49,7 @@ inline bool Klass::is_non_strong_hidden() const {
 // The return value of this function may change from true to false after a safepoint. So the caller
 // of this function must ensure that a safepoint doesn't happen while interpreting the return value.
 inline bool Klass::is_loader_alive() const {
-  return class_loader_data()->is_alive();
+  return class_loader_data() != nullptr &&  class_loader_data()->is_alive();
 }
 
 inline oop Klass::java_mirror() const {
