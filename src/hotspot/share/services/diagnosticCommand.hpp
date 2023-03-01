@@ -564,6 +564,26 @@ public:
   virtual void execute(DCmdSource source, TRAPS);
 };
 
+class CompileTimeDCmd: public DCmd {
+public:
+  CompileTimeDCmd(outputStream* output, bool heap) : DCmd(output, heap) {}
+  static const char* name() {
+    return "Compiler.time";
+  }
+  static const char* description() {
+    return "Print compilation time stats.";
+  }
+  static const char* impact() {
+    return "Low";
+  }
+  static const JavaPermission permission() {
+    JavaPermission p = {"java.lang.management.ManagementPermission",
+                        "monitor", nullptr};
+    return p;
+  }
+  virtual void execute(DCmdSource source, TRAPS);
+};
+
 #ifdef LINUX
 class PerfMapDCmd : public DCmd {
 public:
