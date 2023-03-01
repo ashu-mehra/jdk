@@ -187,6 +187,7 @@ CompileTask* CompilationPolicy::select_task_helper(CompileQueue* compile_queue) 
   return compile_queue->first();
 }
 
+#if 0
 // Simple methods are as good being compiled with C1 as C2.
 // Determine if a given method is such a case.
 bool CompilationPolicy::is_trivial(const methodHandle& method) {
@@ -196,6 +197,7 @@ bool CompilationPolicy::is_trivial(const methodHandle& method) {
   }
   return false;
 }
+#endif
 
 bool CompilationPolicy::force_comp_at_level_simple(const methodHandle& method) {
   if (CompilationModeFlag::quick_internal()) {
@@ -1032,8 +1034,11 @@ CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_le
       switch(cur_level) {
       default: break;
       case CompLevel_none:
-        // If we were at full profile level, would we switch to full opt?
-        if (common<Predicate>(method, CompLevel_full_profile, disable_feedback) == CompLevel_full_optimization) {
+        if (EnableEarlyTier2Compilation && is_method_profiled(method) && method->is_method_data_archived()) {
+          // If we have enough profiling data, switch to limited-profile compilation
+          next_level = CompLevel_limited_profile;
+        } else if (common<Predicate>(method, CompLevel_full_profile, disable_feedback) == CompLevel_full_optimization) {
+          // If we were at full profile level, would we switch to full opt?
           next_level = CompLevel_full_optimization;
         } else if (!CompilationModeFlag::disable_intermediate() && Predicate::apply(method, cur_level, i, b)) {
           // C1-generated fully profiled code is about 30% slower than the limited profile
