@@ -75,6 +75,7 @@ class Method : public Metadata {
   // must add this field to Method::metaspace_pointers_do().
   ConstMethod*      _constMethod;                // Method read-only data.
   MethodData*       _method_data;
+  bool              _is_method_data_archived;
   MethodCounters*   _method_counters;
   AdapterHandlerEntry* _adapter;
   AccessFlags       _access_flags;               // Access flags
@@ -364,6 +365,9 @@ class Method : public Metadata {
   }
 
   void set_method_data(MethodData* data);
+
+  bool is_method_data_archived() { return _is_method_data_archived; }
+  void using_archive_method_data(bool value) { _is_method_data_archived = value; }
 
   MethodCounters* method_counters() const {
     return _method_counters;

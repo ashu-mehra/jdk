@@ -379,6 +379,9 @@
           "Don't compile methods larger than this if "                      \
           "+DontCompileHugeMethods")                                        \
                                                                             \
+  product(bool, EnableEarlyTier2Compilation, true,                          \
+          "Use MethodData from CDS archive to compile early at Tier2")      \
+                                                                            \
 
 // end of COMPILER_FLAGS
 

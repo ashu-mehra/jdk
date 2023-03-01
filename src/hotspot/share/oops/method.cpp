@@ -121,6 +121,8 @@ Method::Method(ConstMethod* xconst, AccessFlags access_flags, Symbol* name) {
     set_signature_handler(nullptr);
   }
 
+  using_archive_method_data(false);
+
   NOT_PRODUCT(set_compiled_invocation_count(0);)
   // Name is very useful for debugging.
   NOT_PRODUCT(_name = name;)
@@ -422,10 +424,12 @@ void Method::restore_unshareable_info(TRAPS) {
                    method_holder()->external_name(), name()->as_C_string(),
                    signature()->as_C_string(), method_data());
     method_data()->restore_unshareable_info(CHECK);
+    using_archive_method_data(true);
   } else {
     MethodData* md = MethodDataTable::find(this);
     if (md) {
       Atomic::replace_if_null(&_method_data, md);
+      using_archive_method_data(true);
     }
   }
   if (PrintMethodDataFromCDS && method_data()) {
@@ -591,6 +595,8 @@ void Method::print_invocation_count() {
   tty->print_cr ("  backedge_counter:             " INT32_FORMAT_W(11), backedge_count());
 
   if (method_data() != nullptr) {
+    tty->print_cr ("  mdo_invocation_counter:       " UINT32_FORMAT_W(11), method_data()->invocation_count());
+    tty->print_cr ("  mdo_backedge_counter:       " UINT32_FORMAT_W(11), method_data()->backedge_count());
     tty->print_cr ("  decompile_count:              " UINT32_FORMAT_W(11), method_data()->decompile_count());
   }
 

@@ -1129,6 +1129,12 @@ void CompileBroker::compile_method_base(const methodHandle& method,
         tty->print("yes");
       }
     }
+    tty->print(" trivial: ");
+    if (CompilationPolicy::is_trivial(method)) {
+      tty->print("yes");
+    } else {
+      tty->print("no");
+    }
     tty->cr();
   }
 

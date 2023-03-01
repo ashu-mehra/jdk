@@ -226,9 +226,6 @@ class CompilationPolicy : AllStatic {
   static void print_event(EventType type, const Method* m, const Method* im, int bci, CompLevel level);
   // Check if the method can be compiled, change level if necessary
   static void compile(const methodHandle& mh, int bci, CompLevel level, TRAPS);
-  // Simple methods are as good being compiled with C1 as C2.
-  // This function tells if it's such a function.
-  inline static bool is_trivial(const methodHandle& method);
   // Force method to be compiled at CompLevel_simple?
   inline static bool force_comp_at_level_simple(const methodHandle& method);
 
@@ -260,6 +257,16 @@ public:
   // m is allowed to be osr compiled
   static bool can_be_osr_compiled(const methodHandle& m, int comp_level = CompLevel_any);
   static bool is_compilation_enabled();
+
+  // Simple methods are as good being compiled with C1 as C2.
+  // This function tells if it's such a function.
+  inline static bool is_trivial(const methodHandle& method) {
+    if (method->is_accessor() ||
+        method->is_constant_getter()) {
+      return true;
+    }
+    return false;
+  }
 
   static CompileTask* select_task_helper(CompileQueue* compile_queue);
   // Return initial compile level to use with Xcomp (depends on compilation mode).
