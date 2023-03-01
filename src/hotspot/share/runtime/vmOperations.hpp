@@ -259,6 +259,16 @@ class VM_PrintCompileQueue: public VM_Operation {
   void doit();
 };
 
+class VM_PrintCompileTime: public VM_Operation {
+ private:
+  outputStream* _out;
+
+ public:
+  VM_PrintCompileTime(outputStream* st) : _out(st) {}
+  VMOp_Type type() const { return VMOp_PrintCompileTime; }
+  void doit();
+};
+
 #if INCLUDE_SERVICES
 class VM_PrintClassHierarchy: public VM_Operation {
  private:

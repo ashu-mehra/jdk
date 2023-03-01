@@ -108,6 +108,7 @@
   template(DumpHashtable)                         \
   template(CleanClassLoaderDataMetaspaces)        \
   template(PrintCompileQueue)                     \
+  template(PrintCompileTime)                      \
   template(PrintClassHierarchy)                   \
   template(PrintClasses)                          \
   template(ICBufferFull)                          \
