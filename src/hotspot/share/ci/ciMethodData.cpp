@@ -274,7 +274,11 @@ void ciReceiverTypeData::translate_receiver_data_from(const ProfileData* data) {
   for (uint row = 0; row < row_limit(); row++) {
     Klass* k = data->as_ReceiverTypeData()->receiver(row);
     if (k != nullptr) {
-      if (k->is_loader_alive()) {
+      if (k->is_loader_alive() &&
+          k->java_mirror()) { // it is possible another thread is loading the class and has set
+                              // class loader data but not java_mirror. If java_mirror is not set
+                              // it can cause crash in get_klass(). The check for java_mirror() is
+                              // to avoid this race condtion.
         ciKlass* klass = CURRENT_ENV->get_klass(k);
         set_receiver(row, klass);
       } else {

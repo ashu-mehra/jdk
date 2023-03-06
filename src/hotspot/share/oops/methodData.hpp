@@ -732,6 +732,10 @@ public:
     return with_status((intptr_t)k, in);
   }
 
+  static intptr_t only_status_bits(intptr_t v) {
+    return v & status_bits;
+  }
+
   static void print_klass(outputStream* st, intptr_t k);
 
 protected:
@@ -847,9 +851,15 @@ public:
 
   void metaspace_pointers_do(MetaspaceClosure* it) {
     for (int i = 0; i < _number_of_entries; i++) {
-      if (valid_klass(type(i))) {
+      if (valid_klass(type(i)) && !was_null_seen(type(i))) {
         intptr_t type_ptr = (intptr_t)_pd->dp() + in_bytes(type_offset(i));
         it->push((Klass**)type_ptr);
+      } else {
+        // only record status bits
+        // we would lose some information if there is a klass with null_seen bit set
+        // in such case we only store the null_seen bit and clear out the klass pointer
+        intptr_t status_bits = only_status_bits(type(i));
+        set_type(i, status_bits);
       }
     }
   }
@@ -898,9 +908,15 @@ public:
   void print_data_on(outputStream* st) const;
 
   void metaspace_pointers_do(MetaspaceClosure* it) {
-    if (valid_klass(type())) {
+    if (valid_klass(type()) && !was_null_seen(type())) {
       intptr_t type_ptr = (intptr_t)_pd->dp() + in_bytes(type_offset());
       it->push((Klass**)type_ptr);
+    } else {
+      // only record status bits
+      // we would lose some information if there is a klass with null_seen bit set
+      // in such case we only store the null_seen bit and clear out the klass pointer
+      intptr_t status_bits = only_status_bits(type());
+      set_type(status_bits);
     }
   }
 };
@@ -1834,6 +1850,10 @@ public:
   static ByteSize type_offset(int i) {
     return cell_offset(type_local_offset(i));
   }
+
+  virtual void metaspace_pointers_do(MetaspaceClosure* it) {
+    _parameters.metaspace_pointers_do(it);
+  }
 };
 
 // SpeculativeTrapData
@@ -1896,6 +1916,11 @@ public:
   }
 
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it) {
+    intptr_t method_ptr = (intptr_t)dp() + in_bytes(method_offset());
+    it->push((Method**)method_ptr);
+  }
 };
 
 // MethodData*
