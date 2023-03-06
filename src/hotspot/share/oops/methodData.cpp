@@ -1703,6 +1703,18 @@ void MethodData::metaspace_pointers_do(MetaspaceClosure* it) {
   for ( ; is_valid(data); data = next_data(data)) {
     data->metaspace_pointers_do(it);
   }
+  if (_parameters_type_data_di != no_parameters) {
+    parameters_type_data()->metaspace_pointers_do(it);
+  }
+  DataLayout* dp  = extra_data_base();
+  DataLayout* end = args_data_limit();
+  for (; dp < end; dp = next_extra(dp)) {
+    if (dp->tag() == DataLayout::no_tag ||
+        dp->tag() == DataLayout::arg_info_data_tag) {
+      break;
+    }
+    dp->data_in()->metaspace_pointers_do(it);
+  }
 }
 
 void MethodData::clean_extra_data_helper(DataLayout* dp, int shift, bool reset) {

@@ -428,6 +428,7 @@ void Method::restore_unshareable_info(TRAPS) {
   } else {
     MethodData* md = MethodDataTable::find(this);
     if (md) {
+      md->restore_unshareable_info(CHECK);
       Atomic::replace_if_null(&_method_data, md);
       using_archive_method_data(true);
     }
