@@ -369,10 +369,13 @@ public:
   static void mark_on_stack();
 
   // Print current compilation time stats for a given compiler
-  static void print_times(const char* name, CompilerStatistics* stats);
+  static void print_times(const char* name, CompilerStatistics* stats, outputStream* st = tty);
 
   // Print a detailed accounting of compilation time
   static void print_times(bool per_compiler = true, bool aggregate = true);
+
+  // Print current compilation time stats for a all tiers
+  static void print_tier_times(outputStream* st);
 
   // compiler name for debugging
   static const char* compiler_name(int comp_level);
