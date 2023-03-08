@@ -2569,12 +2569,25 @@ jlong CompileBroker::total_compilation_ticks() {
   return _perf_total_compilation != nullptr ? _perf_total_compilation->get_value() : 0;
 }
 
-void CompileBroker::print_times(const char* name, CompilerStatistics* stats) {
-  tty->print_cr("  %s {speed: %6.3f bytes/s; standard: %6.3f s, %d bytes, %d methods; osr: %6.3f s, %d bytes, %d methods; nmethods_size: %d bytes; nmethods_code_size: %d bytes}",
+void CompileBroker::print_times(const char* name, CompilerStatistics* stats, outputStream* st) {
+  st->print_cr("  %s {speed: %6.3f bytes/s; standard: %6.3f s, %d bytes, %d methods; osr: %6.3f s, %d bytes, %d methods; nmethods_size: %d bytes; nmethods_code_size: %d bytes}",
                 name, stats->bytes_per_second(),
                 stats->_standard._time.seconds(), stats->_standard._bytes, stats->_standard._count,
                 stats->_osr._time.seconds(), stats->_osr._bytes, stats->_osr._count,
                 stats->_nmethods_size, stats->_nmethods_code_size);
+}
+
+void CompileBroker::print_tier_times(outputStream* st) {
+  st->cr();
+  st->print_cr("Individual compilation Tier times (for compiled methods only)");
+  st->print_cr("------------------------------------------------");
+  st->cr();
+  char tier_name[256];
+  for (int tier = CompLevel_simple; tier <= CompilationPolicy::highest_compile_level(); tier++) {
+    CompilerStatistics* stats = &_stats_per_level[tier-1];
+    os::snprintf_checked(tier_name, sizeof(tier_name), "Tier%d", tier);
+    print_times(tier_name, stats, st);
+  }
 }
 
 void CompileBroker::print_times(bool per_compiler, bool aggregate) {

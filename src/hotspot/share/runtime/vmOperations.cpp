@@ -505,7 +505,7 @@ void VM_PrintCompileQueue::doit() {
 }
 
 void VM_PrintCompileTime::doit() {
-  CompileBroker::print_times(_out);
+  CompileBroker::print_tier_times(_out);
 }
 
 #if INCLUDE_SERVICES
