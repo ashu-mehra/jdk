@@ -1976,10 +1976,10 @@ const int ObjectAlignmentInBytes = 8;
           "2: monitors & new lightweight locking (LM_LIGHTWEIGHT)")         \
           range(0, 2)                                                       \
                                                                             \
-  develop(bool, DumpMethodData, true,                                       \
+  product(bool, DumpMethodData, false,                                      \
           "Dump MethodData in CDS archive")                                 \
                                                                             \
-  develop(bool, PrintMethodDataFromCDS, true,                               \
+  product(bool, PrintMethodDataFromCDS, false,                              \
           "Print MethodData when it is loaded from CDS archive")            \
 
 // end of RUNTIME_FLAGS
