@@ -1037,7 +1037,7 @@ CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_le
         if (EnableEarlyTier2Compilation && is_method_profiled(method) && method->is_method_data_archived()) {
           // If we have enough profiling data, switch to limited-profile compilation
           next_level = CompLevel_limited_profile;
-        } else if (common<Predicate>(method, CompLevel_full_profile, disable_feedback) == CompLevel_full_optimization) {
+        } else if (!IfProfileDataIsAvailableDoTier2 && common<Predicate>(method, CompLevel_full_profile, disable_feedback) == CompLevel_full_optimization) {
           // If we were at full profile level, would we switch to full opt?
           next_level = CompLevel_full_optimization;
         } else if (!CompilationModeFlag::disable_intermediate() && Predicate::apply(method, cur_level, i, b)) {
@@ -1050,6 +1050,8 @@ CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_le
           // when the load on C2 goes down.
           if (!disable_feedback && CompileBroker::queue_size(CompLevel_full_optimization) >
               Tier3DelayOn * compiler_count(CompLevel_full_optimization)) {
+            next_level = CompLevel_limited_profile;
+          } else if (IfProfileDataIsAvailableDoTier2 && is_method_profiled(method) && method->is_method_data_archived()) {
             next_level = CompLevel_limited_profile;
           } else {
             next_level = CompLevel_full_profile;

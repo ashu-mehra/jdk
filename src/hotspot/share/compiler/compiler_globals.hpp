@@ -382,6 +382,8 @@
   product(bool, EnableEarlyTier2Compilation, true,                          \
           "Use MethodData from CDS archive to compile early at Tier2")      \
                                                                             \
+  product(bool, IfProfileDataIsAvailableDoTier2, false,                     \
+          "Use MethodData from CDS archive to compile early at Tier2")      \
 
 // end of COMPILER_FLAGS
 
