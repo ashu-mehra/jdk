@@ -1979,6 +1979,9 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, DumpMethodData, false,                                      \
           "Dump MethodData in CDS archive")                                 \
                                                                             \
+  product(bool, UseMethodDataFromCDS, false,                                \
+          "Use MethodData present in CDS archive")                          \
+                                                                            \
   product(bool, PrintMethodDataFromCDS, false,                              \
           "Print MethodData when it is loaded from CDS archive")            \
 

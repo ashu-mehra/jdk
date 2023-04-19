@@ -413,17 +413,14 @@ void Method::remove_unshareable_info() {
 
 void Method::restore_unshareable_info(TRAPS) {
   assert(is_method() && is_valid_method(this), "ensure C++ vtable is restored");
-  assert(!queued_for_compilation(), "method's queued_for_compilation flag should not be set");
-  if (method_data() != nullptr) {
-    ResourceMark rm(THREAD);
-    log_trace(cds)("Method %s::%s%s has MethodData at %p",
-                   method_holder()->external_name(), name()->as_C_string(),
-                   signature()->as_C_string(), method_data());
-    method_data()->restore_unshareable_info(CHECK);
-    using_archive_method_data(true);
-  } else {
+  assert(!queued_for_compilation(), "method's queued for compilation flag should not be set");
+  if (UseMethodDataFromCDS) {
     MethodData* md = MethodDataTable::find(this);
     if (md) {
+      ResourceMark rm(THREAD);
+      log_info(cds)("Method %s::%s%s has MethodData at %p",
+                     method_holder()->external_name(), name()->as_C_string(),
+                     signature()->as_C_string(), method_data());
       md->restore_unshareable_info(CHECK);
       Atomic::replace_if_null(&_method_data, md);
       using_archive_method_data(true);
@@ -1208,11 +1205,7 @@ void Method::unlink_method() {
   }
   NOT_PRODUCT(set_compiled_invocation_count(0);)
 
-  // No need to call remove_unshareable_info on MethodData.
-  // It will be done by MethodDataTable::make_shareable() later.
-  if (!DynamicDumpSharedSpaces || !DumpMethodData) {
-    set_method_data(nullptr);
-  }
+  set_method_data(nullptr);
   clear_method_counters();
   remove_unshareable_flags();
 }

@@ -926,8 +926,9 @@ class ArchiveBuilder::CDSMapLogger : AllStatic {
   }
   static void log_method(Method* m, address runtime_dest, const char* type_name, int bytes, Thread* current) {
     ResourceMark rm(current);
-    log_debug(cds, map)(_LOG_PREFIX " %s",
-                        p2i(runtime_dest), type_name, bytes,  m->external_name());
+    bool queued = m->queued_for_compilation();
+    log_debug(cds, map)(_LOG_PREFIX " %s %s",
+                        p2i(runtime_dest), type_name, bytes,  m->external_name(), queued ? "queued" : "");
   }
 
   // rw/ro regions only
