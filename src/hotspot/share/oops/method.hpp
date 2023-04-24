@@ -173,10 +173,12 @@ class Method : public Metadata {
   // C string, for the purpose of providing more useful
   // fatal error handling. The string is allocated in resource
   // area if a buffer is not provided by the caller.
+  char* name_as_C_string() const;
   char* name_and_sig_as_C_string() const;
   char* name_and_sig_as_C_string(char* buf, int size) const;
 
   // Static routine in the situations we don't have a Method*
+  static char* name_as_C_string(Klass* klass, Symbol* method_name);
   static char* name_and_sig_as_C_string(Klass* klass, Symbol* method_name, Symbol* signature);
   static char* name_and_sig_as_C_string(Klass* klass, Symbol* method_name, Symbol* signature, char* buf, int size);
 

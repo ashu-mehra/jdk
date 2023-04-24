@@ -345,8 +345,24 @@ void CompilationPolicy::print_counters(const char* prefix, const Method* m) {
       m->highest_comp_level(), m->highest_osr_comp_level());
 }
 
+bool CompilationPolicy::apply_method_filter(const Method* m) {
+  if (PrintTieredEventsFilter != nullptr) {
+    char *method_name = m->name_as_C_string();
+    if (!strcmp(method_name, PrintTieredEventsFilter)) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return true;
+  }
+}
+
 // Print an event.
 void CompilationPolicy::print_event(EventType type, const Method* m, const Method* im, int bci, CompLevel level) {
+  if (!apply_method_filter(m)) {
+    return;
+  }
   bool inlinee_event = m != im;
 
   ttyLocker tty_lock;

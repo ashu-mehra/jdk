@@ -223,6 +223,7 @@ class CompilationPolicy : AllStatic {
   static void set_c2_count(int x) { _c2_count = x;    }
 
   enum EventType { CALL, LOOP, COMPILE, REMOVE_FROM_QUEUE, UPDATE_IN_QUEUE, REPROFILE, MAKE_NOT_ENTRANT };
+  static bool apply_method_filter(const Method* m);
   static void print_event(EventType type, const Method* m, const Method* im, int bci, CompLevel level);
   // Check if the method can be compiled, change level if necessary
   static void compile(const methodHandle& mh, int bci, CompLevel level, TRAPS);

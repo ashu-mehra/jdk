@@ -166,6 +166,23 @@ address Method::get_c2i_no_clinit_check_entry() {
   return adapter()->get_c2i_no_clinit_check_entry();
 }
 
+char* Method::name_as_C_string() const {
+  return name_as_C_string(constants()->pool_holder(), name());
+}
+
+char* Method::name_as_C_string(Klass* klass, Symbol* method_name) {
+  const char* klass_name = klass->external_name();
+  int klass_name_len  = (int)strlen(klass_name);
+  int method_name_len = method_name->utf8_length();
+  int len             = klass_name_len + 1 + method_name_len;
+  char* dest          = NEW_RESOURCE_ARRAY(char, len + 1);
+  strcpy(dest, klass_name);
+  dest[klass_name_len] = '.';
+  strcpy(&dest[klass_name_len + 1], method_name->as_C_string());
+  dest[len] = 0;
+  return dest;
+}
+
 char* Method::name_and_sig_as_C_string() const {
   return name_and_sig_as_C_string(constants()->pool_holder(), name(), signature());
 }
