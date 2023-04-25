@@ -2136,6 +2136,8 @@ private:
   // Counter values at the time profiling started.
   int               _invocation_counter_start;
   int               _backedge_counter_start;
+  int               _dt_invocation_counter;
+  int               _dt_backedge_counter;
   uint              _tenure_traps;
   int               _invoke_mask;      // per-method Tier0InvokeNotifyFreqLog
   int               _backedge_mask;    // per-method Tier0BackedgeNotifyFreqLog
@@ -2299,6 +2301,13 @@ public:
       return 0;
     }
     return _backedge_counter_start;
+  }
+
+  int dumptime_invocation_count() {
+    return _dt_invocation_counter;
+  }
+  int dumptime_backedge_count() {
+    return _dt_backedge_counter;
   }
 
   int invocation_count_delta() { return invocation_count() - invocation_count_start(); }
@@ -2528,6 +2537,12 @@ public:
 #if INCLUDE_CDS
   void remove_unshareable_info() {
     _extra_data_lock = nullptr;
+    _dt_invocation_counter = invocation_count();
+    _dt_backedge_counter = backedge_count();
+    _invocation_counter.reset();
+    _backedge_counter.reset();
+    _invocation_counter_start = 0;
+    _backedge_counter_start = 0;
   }
   void restore_unshareable_info(TRAPS) {
     _extra_data_lock = new Mutex(Mutex::safepoint-2, "MDOExtraData_lock");

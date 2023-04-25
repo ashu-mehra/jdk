@@ -82,6 +82,7 @@ class ciMethod : public ciMetadata {
   int _handler_count;
   int _interpreter_invocation_count;
   int _interpreter_throwout_count;
+  int _dumptime_invocation_count;
   int _inline_instructions_size;
   int _size_of_parameters;
 
@@ -189,6 +190,7 @@ class ciMethod : public ciMetadata {
   int exception_table_length() const             { check_is_loaded(); return _handler_count; }
   int interpreter_invocation_count() const       { check_is_loaded(); return _interpreter_invocation_count; }
   int interpreter_throwout_count() const         { check_is_loaded(); return _interpreter_throwout_count; }
+  int dumptime_invocation_count() const          { check_is_loaded(); return _dumptime_invocation_count; }
   int size_of_parameters() const                 { check_is_loaded(); return _size_of_parameters; }
 
   // Code size for inlining decisions.

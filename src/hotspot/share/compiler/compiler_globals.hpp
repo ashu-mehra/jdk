@@ -281,8 +281,11 @@
   product(bool, PrintTieredEvents, false,                                   \
           "Print tiered events notifications")                              \
                                                                             \
-  product(ccstr, PrintTieredEventsFilter, nullptr,                          \
+  product(ccstr, PrintTieredEventsFilterOnMethod, nullptr,                  \
           "Method filter for printing tiered events notifications")         \
+                                                                            \
+  product(ccstr, PrintTieredEventsFilterOnEventType, nullptr,               \
+          "Event filter for printing tiered events notifications")         \
                                                                             \
   product_pd(intx, OnStackReplacePercentage,                                \
           "NON_TIERED number of method invocations/branches (expressed as " \

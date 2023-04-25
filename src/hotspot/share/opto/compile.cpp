@@ -748,7 +748,7 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
         cg = find_intrinsic(method(), false);
       }
       if (cg == nullptr) {
-        float past_uses = method()->interpreter_invocation_count();
+        float past_uses = method()->interpreter_invocation_count() + method()->dumptime_invocation_count();
         float expected_uses = past_uses;
         cg = CallGenerator::for_inline(method(), expected_uses);
       }

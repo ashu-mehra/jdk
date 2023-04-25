@@ -435,9 +435,9 @@ void Method::restore_unshareable_info(TRAPS) {
     MethodData* md = MethodDataTable::find(this);
     if (md) {
       ResourceMark rm(THREAD);
-      log_info(cds)("Method %s::%s%s has MethodData at %p",
+      log_debug(cds)("Method %s::%s%s has MethodData at %p",
                      method_holder()->external_name(), name()->as_C_string(),
-                     signature()->as_C_string(), method_data());
+                     signature()->as_C_string(), md);
       md->restore_unshareable_info(CHECK);
       Atomic::replace_if_null(&_method_data, md);
       using_archive_method_data(true);
@@ -576,7 +576,7 @@ bool Method::was_executed_more_than(int n) {
     // been executed more than n times.
     return true;
   } else {
-    return invocation_count() > n;
+    return (invocation_count() + dumptime_invocation_count()) > n;
   }
 }
 
@@ -606,8 +606,10 @@ void Method::print_invocation_count() {
   tty->print_cr ("  backedge_counter:             " INT32_FORMAT_W(11), backedge_count());
 
   if (method_data() != nullptr) {
-    tty->print_cr ("  mdo_invocation_counter:       " UINT32_FORMAT_W(11), method_data()->invocation_count());
-    tty->print_cr ("  mdo_backedge_counter:       " UINT32_FORMAT_W(11), method_data()->backedge_count());
+    tty->print_cr ("  mdo_invocation_counter:           " UINT32_FORMAT_W(11), method_data()->invocation_count());
+    tty->print_cr ("  mdo_backedge_counter:             " UINT32_FORMAT_W(11), method_data()->backedge_count());
+    tty->print_cr ("  mdo_dumptime_invocation_counter:  " UINT32_FORMAT_W(11), method_data()->dumptime_invocation_count());
+    tty->print_cr ("  mdo_dumptime_backedge_counter:    " UINT32_FORMAT_W(11), method_data()->dumptime_backedge_count());
     tty->print_cr ("  decompile_count:              " UINT32_FORMAT_W(11), method_data()->decompile_count());
   }
 
@@ -1993,6 +1995,14 @@ int Method::backedge_count() const {
   }
 }
 
+int Method::dumptime_invocation_count() const {
+  MethodData* mdo = method_data();
+  return (mdo != nullptr) ? mdo->dumptime_invocation_count() : 0;
+}
+int Method::dumptime_backedge_count() const {
+  MethodData* mdo = method_data();
+  return (mdo != nullptr) ? mdo->dumptime_backedge_count() : 0;
+}
 int Method::highest_comp_level() const {
   const MethodCounters* mcs = method_counters();
   if (mcs != nullptr) {
@@ -2456,4 +2466,9 @@ void Method::verify_on(outputStream* st) {
   MethodData* md = method_data();
   guarantee(md == nullptr ||
       md->is_methodData(), "should be method data");
+}
+
+bool Method::is_profiled() const {
+  methodHandle h_this(Thread::current(), (Method *)this);
+  return CompilationPolicy::is_method_profiled(h_this);
 }

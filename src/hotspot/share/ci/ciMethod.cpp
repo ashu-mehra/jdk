@@ -154,6 +154,7 @@ ciMethod::ciMethod(const methodHandle& h_m, ciInstanceKlass* holder) :
   if (_interpreter_invocation_count == 0)
     _interpreter_invocation_count = 1;
   _inline_instructions_size = -1;
+  _dumptime_invocation_count = h_m->dumptime_invocation_count();
   if (ReplayCompiles) {
     ciReplay::initialize(this);
   }
@@ -898,8 +899,8 @@ ciKlass* ciMethod::get_declared_method_holder_at_bci(int bci) {
 // invocation counts in methods.
 int ciMethod::scale_count(int count, float prof_factor) {
   if (count > 0 && method_data() != nullptr) {
-    int counter_life = method_data()->invocation_count();
-    int method_life = interpreter_invocation_count();
+    int counter_life = method_data()->invocation_count() + method_data()->dumptime_invocation_count();
+    int method_life = interpreter_invocation_count() + dumptime_invocation_count();
     if (method_life < counter_life) { // may happen because of the snapshot timing
       method_life = counter_life;
     }

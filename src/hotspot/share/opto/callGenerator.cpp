@@ -297,7 +297,7 @@ CallGenerator* CallGenerator::for_inline(ciMethod* m, float expected_uses) {
 // of the caller.  Thus, this CallGenerator cannot be mixed with others!
 CallGenerator* CallGenerator::for_osr(ciMethod* m, int osr_bci) {
   if (InlineTree::check_can_parse(m) != nullptr)  return nullptr;
-  float past_uses = m->interpreter_invocation_count();
+  float past_uses = m->interpreter_invocation_count() + m->dumptime_invocation_count();
   float expected_uses = past_uses;
   return new ParseGenerator(m, expected_uses, true);
 }

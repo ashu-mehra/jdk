@@ -216,13 +216,11 @@ class CompilationPolicy : AllStatic {
   inline static bool should_create_mdo(const methodHandle& method, CompLevel cur_level);
   // Create MDO if necessary.
   static void create_mdo(const methodHandle& mh, JavaThread* THREAD);
-  // Is method profiled enough?
-  static bool is_method_profiled(const methodHandle& method);
 
   static void set_c1_count(int x) { _c1_count = x;    }
   static void set_c2_count(int x) { _c2_count = x;    }
 
-  enum EventType { CALL, LOOP, COMPILE, REMOVE_FROM_QUEUE, UPDATE_IN_QUEUE, REPROFILE, MAKE_NOT_ENTRANT };
+  enum EventType { CALL, LOOP, COMPILE, REMOVE_FROM_QUEUE_STALE, REMOVE_FROM_QUEUE_COMP_COMPLETED, UPDATE_IN_QUEUE, REPROFILE, MAKE_NOT_ENTRANT, SELECTED_FOR_COMPILATION };
   static bool apply_method_filter(const Method* m);
   static void print_event(EventType type, const Method* m, const Method* im, int bci, CompLevel level);
   // Check if the method can be compiled, change level if necessary
@@ -286,6 +284,8 @@ public:
   static CompLevel initial_compile_level(const methodHandle& method);
   // Return highest level possible
   static CompLevel highest_compile_level();
+  // Is method profiled enough?
+  static bool is_method_profiled(const methodHandle& method);
 };
 
 #endif // SHARE_COMPILER_COMPILATIONPOLICY_HPP

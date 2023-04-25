@@ -255,6 +255,7 @@ bool ciMethodData::load_data() {
     // to observe non-zero invocation count to properly scale profile counts (see ciMethod::scale_count()).
     _invocation_counter = 1;
   }
+  _dumptime_invocation_counter = mdo->dumptime_invocation_count();
 
   _state = mdo->is_mature() ? mature_state : immature_state;
   _eflags = mdo->eflags();

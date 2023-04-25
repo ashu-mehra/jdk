@@ -132,6 +132,8 @@ void print_method_profiling_data() {
         tty->print_cr("------------------------------------------------------------------------");
         m->print_invocation_count();
         tty->print_cr("  mdo size: %d bytes", m->method_data()->size_in_bytes());
+        tty->print_cr("  profiled enough: %s", m->is_profiled() ? "yes" : "no");
+        tty->print_cr("  highest comp level: %d", m->highest_comp_level());
         tty->cr();
         // Dump data on parameters if any
         if (m->method_data() != nullptr && m->method_data()->parameters_type_data() != nullptr) {

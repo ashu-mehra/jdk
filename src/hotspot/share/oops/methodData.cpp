@@ -1314,6 +1314,8 @@ void MethodData::init() {
   _backedge_counter.init();
   _invocation_counter_start = 0;
   _backedge_counter_start = 0;
+  _dt_invocation_counter = 0;
+  _dt_backedge_counter = 0;
 
   // Set per-method invoke- and backedge mask.
   double scale = 1.0;

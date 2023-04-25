@@ -399,6 +399,7 @@ private:
   // running at different compilation levels concurrently. So, in order to precisely measure
   // its maturity we need separate counters.
   int _invocation_counter;
+  int _dumptime_invocation_counter;
 
   // Coherent snapshot of original header.
   MethodData::CompilerCounters _orig;
@@ -472,6 +473,7 @@ public:
   bool is_mature() { return _state == mature_state; }
 
   int invocation_count() { return _invocation_counter; }
+  int dumptime_invocation_count() { return _dumptime_invocation_counter; }
 
 #if INCLUDE_RTM_OPT
   // return cached value

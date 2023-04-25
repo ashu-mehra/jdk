@@ -377,11 +377,11 @@ void CompileTask::log_task_done(CompileLog* log) {
   }
 
   // <task_done ... stamp='1.234'>  </task>
-  log->begin_elem("task_done success='%d' nmsize='%d' count='%d'",
+  log->begin_elem("task_done success='%d' nmsize='%d' count='%d(%d)'",
                   _is_success, _nm_content_size,
-                  method->invocation_count());
+                  method->invocation_count(), method->dumptime_invocation_count());
   int bec = method->backedge_count();
-  if (bec != 0)  log->print(" backedge_count='%d'", bec);
+  if (bec != 0)  log->print(" backedge_count='%d(%d)'", bec, method->dumptime_backedge_count());
   // Note:  "_is_complete" is about to be set, but is not.
   if (_num_inlined_bytecodes != 0) {
     log->print(" inlined_bytes='%d'", _num_inlined_bytecodes);

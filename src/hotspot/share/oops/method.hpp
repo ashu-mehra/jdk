@@ -395,6 +395,8 @@ class Method : public Metadata {
 
   int invocation_count() const;
   int backedge_count() const;
+  int dumptime_invocation_count() const;
+  int dumptime_backedge_count() const;
 
   bool was_executed_more_than(int n);
   bool was_never_executed()                     { return !was_executed_more_than(0);  }
@@ -933,6 +935,9 @@ public:
   // Inlined elements
   address* native_function_addr() const          { assert(is_native(), "must be native"); return (address*) (this+1); }
   address* signature_handler_addr() const        { return native_function_addr() + 1; }
+ 
+ public:
+  bool is_profiled() const;
 };
 
 

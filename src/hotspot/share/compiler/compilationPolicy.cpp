@@ -331,24 +331,28 @@ void CompilationPolicy::print_counters(const char* prefix, const Method* m) {
   MethodData* mdh = m->method_data();
   int mdo_invocations = 0, mdo_backedges = 0;
   int mdo_invocations_start = 0, mdo_backedges_start = 0;
+  int dt_invocations = 0, dt_backedges = 0;
   if (mdh != nullptr) {
     mdo_invocations = mdh->invocation_count();
     mdo_backedges = mdh->backedge_count();
     mdo_invocations_start = mdh->invocation_count_start();
     mdo_backedges_start = mdh->backedge_count_start();
+    dt_invocations = mdh->dumptime_invocation_count();
+    dt_backedges = mdh->dumptime_backedge_count();
   }
-  tty->print(" %stotal=%d,%d %smdo=%d(%d),%d(%d)", prefix,
+  tty->print(" %stotal=%d,%d %smdo=%d(%d),%d(%d) dumptime=%d,%d", prefix,
       invocation_count, backedge_count, prefix,
       mdo_invocations, mdo_invocations_start,
-      mdo_backedges, mdo_backedges_start);
+      mdo_backedges, mdo_backedges_start,
+      dt_invocations, dt_backedges);
   tty->print(" %smax levels=%d,%d", prefix,
       m->highest_comp_level(), m->highest_osr_comp_level());
 }
 
 bool CompilationPolicy::apply_method_filter(const Method* m) {
-  if (PrintTieredEventsFilter != nullptr) {
+  if (PrintTieredEventsFilterOnMethod != nullptr) {
     char *method_name = m->name_as_C_string();
-    if (!strcmp(method_name, PrintTieredEventsFilter)) {
+    if (!strcmp(method_name, PrintTieredEventsFilterOnMethod)) {
       return true;
     } else {
       return false;
@@ -365,35 +369,66 @@ void CompilationPolicy::print_event(EventType type, const Method* m, const Metho
   }
   bool inlinee_event = m != im;
 
+  const char *type_str = "unknown";
+  switch(type) {
+  case CALL:
+    type_str = "call";
+    break;
+  case LOOP:
+    type_str = "loop";
+    break;
+  case COMPILE:
+    type_str = "compile";
+    break;
+  case REMOVE_FROM_QUEUE_STALE:
+    type_str = "remove-from-queue-stale";
+    break;
+  case REMOVE_FROM_QUEUE_COMP_COMPLETED:
+    type_str = "remove-from-queue-comp-completed";
+    break;
+  case UPDATE_IN_QUEUE:
+    type_str = "update-in-queue";
+    break;
+  case REPROFILE:
+    type_str = "reprofile";
+    break;
+  case MAKE_NOT_ENTRANT:
+    type_str = "make-not-entrant";
+    break;
+  case SELECTED_FOR_COMPILATION:
+    type_str = "selected-for-compilation";
+    break;
+  default:
+    type_str = "unknown";
+  }
+
+  if (PrintTieredEventsFilterOnEventType != nullptr) {
+    const char* cursor = PrintTieredEventsFilterOnEventType;
+    bool found = false;
+    while (*cursor != '\0') {
+      if (strlen(cursor) < strlen(type_str)) {
+        break;
+      }
+      if (!strncmp(type_str, cursor, strlen(type_str))) {
+        found = true;
+        break;
+      } else {
+        cursor = strstr(cursor, ",");
+        if (cursor == nullptr) {
+          break;
+        }
+        cursor += 1;
+      }
+    }
+    if (!found) {
+      return;
+    }
+  }
+
   ttyLocker tty_lock;
   tty->print("%lf: [", os::elapsedTime());
 
-  switch(type) {
-  case CALL:
-    tty->print("call");
-    break;
-  case LOOP:
-    tty->print("loop");
-    break;
-  case COMPILE:
-    tty->print("compile");
-    break;
-  case REMOVE_FROM_QUEUE:
-    tty->print("remove-from-queue");
-    break;
-  case UPDATE_IN_QUEUE:
-    tty->print("update-in-queue");
-    break;
-  case REPROFILE:
-    tty->print("reprofile");
-    break;
-  case MAKE_NOT_ENTRANT:
-    tty->print("make-not-entrant");
-    break;
-  default:
-    tty->print("unknown");
-  }
-
+  tty->print("%s", type_str);
   tty->print(" level=%d ", level);
 
   ResourceMark rm;
@@ -414,6 +449,8 @@ void CompilationPolicy::print_event(EventType type, const Method* m, const Metho
   tty->print(" k=%.2lf,%.2lf", threshold_scale(CompLevel_full_profile, Tier3LoadFeedback),
                                threshold_scale(CompLevel_full_optimization, Tier4LoadFeedback));
 
+  tty->print(" weight=%.2lf", weight((Method *)m));
+  tty->print(" hcl=%d", m->highest_comp_level());
   if (type != COMPILE) {
     print_counters("", m);
     if (inlinee_event) {
@@ -443,6 +480,10 @@ void CompilationPolicy::print_event(EventType type, const Method* m, const Metho
     if (m->queued_for_compilation()) {
       tty->print("in-queue");
     } else tty->print("idle");
+    methodHandle mh(Thread::current(), (Method *)m);
+    if (is_old(mh)) {
+      tty->print(" old");
+    }
   }
   tty->print_cr("]");
 }
@@ -656,7 +697,7 @@ CompileTask* CompilationPolicy::select_task(CompileQueue* compile_queue) {
     methodHandle mh(Thread::current(), method);
     if (task->can_become_stale() && is_stale(t, TieredCompileTaskTimeout, mh) && !is_old(mh)) {
       if (PrintTieredEvents) {
-        print_event(REMOVE_FROM_QUEUE, method, method, task->osr_bci(), (CompLevel) task->comp_level());
+        print_event(REMOVE_FROM_QUEUE_STALE, method, method, task->osr_bci(), (CompLevel) task->comp_level());
       }
       method->clear_queued_for_compilation();
       compile_queue->remove_and_mark_stale(task);
@@ -697,7 +738,7 @@ CompileTask* CompilationPolicy::select_task(CompileQueue* compile_queue) {
 
     if (CompileBroker::compilation_is_complete(max_method_h, max_task->osr_bci(), CompLevel_limited_profile)) {
       if (PrintTieredEvents) {
-        print_event(REMOVE_FROM_QUEUE, max_method, max_method, max_task->osr_bci(), (CompLevel)max_task->comp_level());
+        print_event(REMOVE_FROM_QUEUE_COMP_COMPLETED, max_method, max_method, max_task->osr_bci(), (CompLevel)max_task->comp_level());
       }
       compile_queue->remove_and_mark_stale(max_task);
       max_method->clear_queued_for_compilation();
@@ -709,6 +750,9 @@ CompileTask* CompilationPolicy::select_task(CompileQueue* compile_queue) {
     }
   }
 
+  if (max_task != nullptr && PrintTieredEvents) {
+    print_event(SELECTED_FOR_COMPILATION, max_method, max_method, max_task->osr_bci(), (CompLevel)max_task->comp_level());
+  }
   return max_task;
 }
 
@@ -915,6 +959,14 @@ bool CompilationPolicy::is_method_profiled(const methodHandle& method) {
   if (mdo != nullptr) {
     int i = mdo->invocation_count_delta();
     int b = mdo->backedge_count_delta();
+    int i_start = mdo->invocation_count_start();
+    int b_start = mdo->backedge_count_start();
+    if (i_start == 0) {
+      i += mdo->dumptime_invocation_count();
+    }
+    if (b_start == 0) {
+      b += mdo->dumptime_backedge_count();
+    }
     return CallPredicate::apply_scaled(method, CompLevel_full_profile, i, b, 1);
   }
   return false;
@@ -930,8 +982,8 @@ bool CompilationPolicy::is_mature(Method* method) {
   methodHandle mh(Thread::current(), method);
   MethodData* mdo = method->method_data();
   if (mdo != nullptr) {
-    int i = mdo->invocation_count();
-    int b = mdo->backedge_count();
+    int i = mdo->invocation_count() + mdo->dumptime_invocation_count();
+    int b = mdo->backedge_count() + mdo->dumptime_backedge_count();
     double k = ProfileMaturityPercentage / 100.0;
     return CallPredicate::apply_scaled(mh, CompLevel_full_profile, i, b, k) || LoopPredicate::apply_scaled(mh, CompLevel_full_profile, i, b, k);
   }
@@ -1038,8 +1090,8 @@ void CompilationPolicy::create_mdo(const methodHandle& mh, JavaThread* THREAD) {
 template<typename Predicate>
 CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_level, bool disable_feedback) {
   CompLevel next_level = cur_level;
-  int i = method->invocation_count();
-  int b = method->backedge_count();
+  int i = method->invocation_count() + method->dumptime_invocation_count();
+  int b = method->backedge_count() + method->dumptime_backedge_count();
 
   if (force_comp_at_level_simple(method)) {
     next_level = CompLevel_simple;
@@ -1105,6 +1157,14 @@ CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_le
             if (mdo->would_profile() || CompilationModeFlag::disable_intermediate()) {
               int mdo_i = mdo->invocation_count_delta();
               int mdo_b = mdo->backedge_count_delta();
+              int i_start = mdo->invocation_count_start();
+              int b_start = mdo->backedge_count_start();
+              if (i_start == 0) {
+                mdo_i += mdo->dumptime_invocation_count();
+              }
+              if (b_start == 0) {
+                mdo_b += mdo->dumptime_backedge_count();
+              }
               if (Predicate::apply(method, cur_level, mdo_i, mdo_b)) {
                 next_level = CompLevel_full_optimization;
               }
