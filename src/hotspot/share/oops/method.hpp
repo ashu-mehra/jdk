@@ -76,8 +76,8 @@ class Method : public Metadata {
   // must add this field to Method::metaspace_pointers_do().
   ConstMethod*      _constMethod;                // Method read-only data.
   MethodData*       _method_data;
-  bool              _is_method_data_archived;
   MethodCounters*   _method_counters;
+  bool              _is_method_data_archived;
   AdapterHandlerEntry* _adapter;
   AccessFlags       _access_flags;               // Access flags
   int               _vtable_index;               // vtable index of this method (see VtableIndexFlag)
@@ -278,6 +278,7 @@ class Method : public Metadata {
 
   int highest_comp_level() const;
   void set_highest_comp_level(int level);
+
   int highest_osr_comp_level() const;
   void set_highest_osr_comp_level(int level);
 
@@ -347,6 +348,10 @@ class Method : public Metadata {
     return _method_data;
   }
 
+  MethodData** method_data_addr() {
+    return &_method_data;
+  }
+
   void set_method_data(MethodData* data);
 
   bool is_method_data_archived() { return _is_method_data_archived; }
@@ -356,11 +361,16 @@ class Method : public Metadata {
     return _method_counters;
   }
 
+  MethodCounters** method_counters_addr() {
+    return &_method_counters;
+  }
+
   void clear_method_counters() {
     _method_counters = nullptr;
   }
 
   bool init_method_counters(MethodCounters* counters);
+  bool init_method_data(MethodData* method_data);
 
   int prev_event_count() const {
     MethodCounters* mcs = method_counters();

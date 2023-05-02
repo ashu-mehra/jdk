@@ -37,6 +37,7 @@
 #include "cds/heapShared.hpp"
 #include "cds/lambdaFormInvokers.hpp"
 #include "cds/metaspaceShared.hpp"
+#include "cds/runTimeMethodInfo.hpp"
 #include "classfile/classLoaderDataGraph.hpp"
 #include "classfile/classLoaderDataShared.hpp"
 #include "classfile/classLoaderExt.hpp"
@@ -64,7 +65,6 @@
 #include "oops/compressedOops.inline.hpp"
 #include "oops/instanceMirrorKlass.hpp"
 #include "oops/klass.inline.hpp"
-#include "oops/methodData.hpp"
 #include "oops/objArrayOop.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/oopHandle.hpp"
@@ -1459,7 +1459,7 @@ void MetaspaceShared::initialize_shared_spaces() {
     ReadClosure rc(&buffer);
     SymbolTable::serialize_shared_table_header(&rc, false);
     SystemDictionaryShared::serialize_dictionary_headers(&rc, false);
-    MethodDataTable::serialize_shared_table_header(&rc);
+    MethodInfoTable::serialize_shared_table_header(&rc);
     dynamic_mapinfo->close();
     dynamic_mapinfo->unmap_region(MetaspaceShared::bm);
   }

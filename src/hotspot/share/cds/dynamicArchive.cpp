@@ -31,6 +31,7 @@
 #include "cds/dynamicArchive.hpp"
 #include "cds/lambdaFormInvokers.hpp"
 #include "cds/metaspaceShared.hpp"
+#include "cds/runTimeMethodInfo.hpp"
 #include "classfile/classLoaderData.inline.hpp"
 #include "classfile/symbolTable.hpp"
 #include "classfile/systemDictionaryShared.hpp"
@@ -43,7 +44,6 @@
 #include "memory/metaspaceClosure.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/klass.inline.hpp"
-#include "oops/methodData.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/os.hpp"
 #include "runtime/sharedRuntime.hpp"
@@ -121,7 +121,7 @@ public:
     // save dumptime tables
     SystemDictionaryShared::clone_dumptime_tables();
 
-    MethodDataTable::initialize();
+    MethodInfoTable::initialize();
 
     init_header();
     gather_source_objs();
@@ -148,14 +148,14 @@ public:
       SystemDictionaryShared::write_to_archive(false);
 
       if (DumpMethodData) {
-        MethodDataTable::dump();
+        MethodInfoTable::dump();
       }
 
       serialized_data = ro_region()->top();
       WriteClosure wc(ro_region());
       SymbolTable::serialize_shared_table_header(&wc, false);
       SystemDictionaryShared::serialize_dictionary_headers(&wc, false);
-      MethodDataTable::serialize_shared_table_header(&wc);
+      MethodInfoTable::serialize_shared_table_header(&wc);
     }
 
     verify_estimate_size(_estimated_hashtable_bytes, "Hashtables");
@@ -170,7 +170,7 @@ public:
 
     if (DumpMethodData) {
       log_info(cds)("Make MethodData shareable");
-      MethodDataTable::make_shareable();
+      MethodInfoTable::make_shareable();
     }
 
     relocate_to_requested();
@@ -188,7 +188,7 @@ public:
     FileMapInfo::metaspace_pointers_do(it);
     SystemDictionaryShared::dumptime_classes_do(it);
     if (DumpMethodData) {
-      MethodDataTable::metaspace_pointers_do(it);
+      MethodInfoTable::metaspace_pointers_do(it);
     }
   }
 };

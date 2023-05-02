@@ -62,7 +62,8 @@
   f(Method) \
   f(ObjArrayKlass) \
   f(TypeArrayKlass) \
-  f(MethodData)
+  f(MethodData) \
+  f(MethodCounters)
 
 class CppVtableInfo {
   intptr_t _vtable_size;
@@ -253,7 +254,7 @@ intptr_t* CppVtables::get_archived_vtable(MetaspaceObj::Type msotype, address ob
   case MetaspaceObj::ConstMethodType:
   case MetaspaceObj::ConstantPoolCacheType:
   case MetaspaceObj::AnnotationsType:
-  case MetaspaceObj::MethodCountersType:
+  //case MetaspaceObj::MethodCountersType:
   case MetaspaceObj::SharedClassPathEntryType:
   case MetaspaceObj::RecordComponentType:
     // These have no vtables.

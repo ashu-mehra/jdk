@@ -30,6 +30,7 @@
 #include "cds/dumpAllocStats.hpp"
 #include "cds/heapShared.hpp"
 #include "cds/metaspaceShared.hpp"
+#include "cds/runTimeMethodInfo.hpp"
 #include "classfile/classLoaderDataShared.hpp"
 #include "classfile/symbolTable.hpp"
 #include "classfile/systemDictionaryShared.hpp"
@@ -41,7 +42,6 @@
 #include "memory/memRegion.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/instanceKlass.hpp"
-#include "oops/methodData.hpp"
 #include "oops/objArrayKlass.hpp"
 #include "oops/objArrayOop.inline.hpp"
 #include "oops/oopHandle.inline.hpp"
@@ -299,11 +299,11 @@ size_t ArchiveBuilder::estimate_archive_size() {
   // size of the symbol table and two dictionaries, plus the RunTimeClassInfo's
   size_t symbol_table_est = SymbolTable::estimate_size_for_archive();
   size_t dictionary_est = SystemDictionaryShared::estimate_size_for_archive();
-  size_t md_table_est = 0;
+  size_t method_info_est = 0;
   if (DumpMethodData) {
-    md_table_est = MethodDataTable::estimate_shared_table_size();
+    method_info_est = MethodInfoTable::estimate_size_for_archive();
   }
-  _estimated_hashtable_bytes = symbol_table_est + dictionary_est + md_table_est;
+  _estimated_hashtable_bytes = symbol_table_est + dictionary_est + method_info_est;
 
   size_t total = 0;
 
@@ -314,7 +314,7 @@ size_t ArchiveBuilder::estimate_archive_size() {
   total += _total_dump_regions * MetaspaceShared::core_region_alignment();
 
   log_info(cds)("_estimated_hashtable_bytes = " SIZE_FORMAT " + " SIZE_FORMAT " + " SIZE_FORMAT " = " SIZE_FORMAT,
-                symbol_table_est, dictionary_est, md_table_est, _estimated_hashtable_bytes);
+                symbol_table_est, dictionary_est, method_info_est, _estimated_hashtable_bytes);
   log_info(cds)("_estimated_metaspaceobj_bytes = " SIZE_FORMAT, _estimated_metaspaceobj_bytes);
   log_info(cds)("total estimate bytes = " SIZE_FORMAT, total);
 

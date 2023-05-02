@@ -25,6 +25,7 @@
 #include "precompiled.hpp"
 #include "cds/cppVtables.hpp"
 #include "cds/metaspaceShared.hpp"
+#include "cds/runTimeMethodInfo.hpp"
 #include "classfile/classLoaderDataGraph.hpp"
 #include "classfile/metadataOnStackMark.hpp"
 #include "classfile/symbolTable.hpp"
@@ -432,23 +433,25 @@ void Method::restore_unshareable_info(TRAPS) {
   assert(is_method() && is_valid_method(this), "ensure C++ vtable is restored");
   assert(!queued_for_compilation(), "method's queued for compilation flag should not be set");
   if (UseMethodDataFromCDS) {
-    MethodData* md = MethodDataTable::find(this);
-    if (md) {
+    bool rc = MethodInfoTable::find_method_info(this);
+    if (rc) {
       ResourceMark rm(THREAD);
+      log_debug(cds)("Method %s::%s%s has MethodCounters at %p",
+                     method_holder()->external_name(), name()->as_C_string(),
+                     signature()->as_C_string(), method_counters());
       log_debug(cds)("Method %s::%s%s has MethodData at %p",
                      method_holder()->external_name(), name()->as_C_string(),
-                     signature()->as_C_string(), md);
-      md->restore_unshareable_info(CHECK);
-      Atomic::replace_if_null(&_method_data, md);
+                     signature()->as_C_string(), method_data());
       using_archive_method_data(true);
+
+      if (PrintMethodDataFromCDS && method_data()) {
+        ttyLocker ttyl;
+        tty->print_cr("------------------------------------------------------------------------");
+        tty->print_cr("  mdo size: %d bytes", method_data()->size_in_bytes());
+        print_codes();
+        tty->print_cr("------------------------------------------------------------------------");
+      }
     }
-  }
-  if (PrintMethodDataFromCDS && method_data()) {
-    ttyLocker ttyl;
-    tty->print_cr("------------------------------------------------------------------------");
-    tty->print_cr("  mdo size: %d bytes", method_data()->size_in_bytes());
-    print_codes();
-    tty->print_cr("------------------------------------------------------------------------");
   }
 }
 #endif
@@ -638,7 +641,7 @@ void Method::build_profiling_method_data(const methodHandle& method, TRAPS) {
     return;   // return the exception (which is cleared)
   }
 
-  if (!Atomic::replace_if_null(&method->_method_data, method_data)) {
+  if (!method->init_method_data(method_data)) {
     MetadataFactory::free_metadata(loader_data, method_data);
     return;
   }
@@ -650,6 +653,11 @@ void Method::build_profiling_method_data(const methodHandle& method, TRAPS) {
     tty->cr();
     // At the end of the run, the MDO, full of data, will be dumped.
   }
+}
+
+bool Method::init_method_data(MethodData* method_data) {
+  // Try to install a pointer to MethodCounters, return true on success.
+  return Atomic::replace_if_null(&_method_data, method_data);
 }
 
 MethodCounters* Method::build_method_counters(Thread* current, Method* m) {
@@ -2003,6 +2011,7 @@ int Method::dumptime_backedge_count() const {
   MethodData* mdo = method_data();
   return (mdo != nullptr) ? mdo->dumptime_backedge_count() : 0;
 }
+
 int Method::highest_comp_level() const {
   const MethodCounters* mcs = method_counters();
   if (mcs != nullptr) {
@@ -2034,7 +2043,6 @@ void Method::set_highest_osr_comp_level(int level) {
     mcs->set_highest_osr_comp_level(level);
   }
 }
-
 #if INCLUDE_JVMTI
 
 BreakpointInfo::BreakpointInfo(Method* m, int bci) {

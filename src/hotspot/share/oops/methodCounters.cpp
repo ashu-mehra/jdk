@@ -73,4 +73,19 @@ void MethodCounters::print_value_on(outputStream* st) const {
   print_address_on(st);
 }
 
+void MethodCounters::remove_unshareable_info() {
+  set_interpreter_throwout_count(0);
+  set_prev_time(0);
+  set_prev_event_count(0);
+  set_rate(0);
+  _invoke_mask = 0; 
+  _backedge_mask = 0;
+}
 
+void MethodCounters::restore_unshareable_info(const methodHandle& mh) {
+  // Set per-method thresholds.
+  double scale = 1.0;
+  CompilerOracle::has_option_value(mh, CompileCommand::CompileThresholdScaling, scale);
+  _invoke_mask = right_n_bits(CompilerConfig::scaled_freq_log(Tier0InvokeNotifyFreqLog, scale)) << InvocationCounter::count_shift;
+  _backedge_mask = right_n_bits(CompilerConfig::scaled_freq_log(Tier0BackedgeNotifyFreqLog, scale)) << InvocationCounter::count_shift;
+}

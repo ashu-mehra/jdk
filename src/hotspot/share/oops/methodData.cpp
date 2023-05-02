@@ -661,9 +661,6 @@ void SpeculativeTrapData::print_data_on(outputStream* st, const char* extra) con
 // A MethodData* holds information which has been collected about
 // a method.
 
-GrowableArray<MethodData*> MethodDataTable::_method_data_table(4*1024, mtClassShared);
-MethodDataSharedTable MethodDataTable::_method_data_shared_table;
-
 MethodData* MethodData::allocate(ClassLoaderData* loader_data, const methodHandle& method, TRAPS) {
   assert(!THREAD->owns_locks(), "Should not own any locks");
   int size = MethodData::compute_allocation_size_in_words(method);
@@ -1875,9 +1872,12 @@ void MethodData::release_C_heap_structures() {
 #endif
 }
 
+#if 0
 // ==================================================================
 // MethodDataTable
 
+GrowableArray<MethodData*> MethodDataTable::_method_data_table(4*1024, mtClassShared);
+MethodDataSharedTable MethodDataTable::_method_data_shared_table;
 
 void collect_method_data(Method* method) {
   if (method->method_data()) {
@@ -1983,3 +1983,4 @@ MethodData* MethodDataTable::find(Method* method) {
   }
   return (MethodData*)md;
 }
+#endif

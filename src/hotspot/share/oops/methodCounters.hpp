@@ -53,6 +53,8 @@ class MethodCounters : public Metadata {
 
   MethodCounters(const methodHandle& mh);
  public:
+  // CDS and vtbl checking can create an empty MethodCounters to get vtbl pointer.
+  MethodCounters() {}
   virtual bool is_methodCounters() const { return true; }
 
   static MethodCounters* allocate_no_exception(const methodHandle& mh);
@@ -132,5 +134,7 @@ class MethodCounters : public Metadata {
   virtual const char* internal_name() const { return "{method counters}"; }
   virtual void print_value_on(outputStream* st) const;
 
+  void remove_unshareable_info();
+  void restore_unshareable_info(const methodHandle& mh);
 };
 #endif // SHARE_OOPS_METHODCOUNTERS_HPP

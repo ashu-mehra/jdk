@@ -2544,7 +2544,7 @@ public:
     _invocation_counter_start = 0;
     _backedge_counter_start = 0;
   }
-  void restore_unshareable_info(TRAPS) {
+  void restore_unshareable_info() {
     _extra_data_lock = new Mutex(Mutex::safepoint-2, "MDOExtraData_lock");
   }
 #endif
@@ -2580,13 +2580,16 @@ public:
   void clean_weak_method_links();
   Mutex* extra_data_lock() { return _extra_data_lock; }
 
+#if 0
   static bool EQUALS(const MethodData* value, Method* key, int len_unused) {
     log_info(cds, hashtables)("MethodData::EQUALS value: %p, value-name=%p, key: %p",
                               value, value->method()->name(), key);
     return (value->method() == key);
   }
+#endif
 };
 
+#if 0
 class SerializeClosure; // forward declaration
 
 class MethodDataSharedTable : public OffsetCompactHashtable<
@@ -2609,5 +2612,5 @@ public:
   static void serialize_shared_table_header(SerializeClosure* soc);
   static MethodData* find(Method* method);
 };
-
+#endif
 #endif // SHARE_OOPS_METHODDATA_HPP
