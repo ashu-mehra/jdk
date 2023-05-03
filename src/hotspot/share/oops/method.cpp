@@ -2004,12 +2004,37 @@ int Method::backedge_count() const {
 }
 
 int Method::dumptime_invocation_count() const {
+  MethodCounters* mcs = method_counters();
   MethodData* mdo = method_data();
-  return (mdo != nullptr) ? mdo->dumptime_invocation_count() : 0;
+  if ((mcs != nullptr && mcs->dumptime_invocation_count() == InvocationCounter::count_limit) ||
+      (mdo != nullptr && mdo->dumptime_invocation_count() == InvocationCounter::count_limit)) {
+    return InvocationCounter::count_limit;
+  } else {
+    uint count = ((mcs != nullptr) ? mcs->dumptime_invocation_count() : 0) +
+                 ((mdo != nullptr) ? mdo->dumptime_invocation_count() : 0);
+    if (count > InvocationCounter::count_limit) {
+      return InvocationCounter::count_limit;
+    } else {
+      return count;
+    }
+  }
 }
+
 int Method::dumptime_backedge_count() const {
+  MethodCounters* mcs = method_counters();
   MethodData* mdo = method_data();
-  return (mdo != nullptr) ? mdo->dumptime_backedge_count() : 0;
+  if ((mcs != nullptr && mcs->dumptime_backedge_count() == InvocationCounter::count_limit) ||
+      (mdo != nullptr && mdo->dumptime_backedge_count() == InvocationCounter::count_limit)) {
+    return InvocationCounter::count_limit;
+  } else {
+    uint count = ((mcs != nullptr) ? mcs->dumptime_backedge_count() : 0) +
+                 ((mdo != nullptr) ? mdo->dumptime_backedge_count() : 0);
+    if (count > InvocationCounter::count_limit) {
+      return InvocationCounter::count_limit;
+    } else {
+      return count;
+    }
+  }
 }
 
 int Method::highest_comp_level() const {

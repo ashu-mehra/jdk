@@ -328,23 +328,26 @@ double CompilationPolicy::threshold_scale(CompLevel level, int feedback_k) {
 void CompilationPolicy::print_counters(const char* prefix, const Method* m) {
   int invocation_count = m->invocation_count();
   int backedge_count = m->backedge_count();
+  int dt_invocation_count = m->dumptime_invocation_count();
+  int dt_backedge_count = m->dumptime_backedge_count();
   MethodData* mdh = m->method_data();
   int mdo_invocations = 0, mdo_backedges = 0;
   int mdo_invocations_start = 0, mdo_backedges_start = 0;
-  int dt_invocations = 0, dt_backedges = 0;
+  int mdo_dt_invocations = 0, mdo_dt_backedges = 0;
   if (mdh != nullptr) {
     mdo_invocations = mdh->invocation_count();
     mdo_backedges = mdh->backedge_count();
     mdo_invocations_start = mdh->invocation_count_start();
     mdo_backedges_start = mdh->backedge_count_start();
-    dt_invocations = mdh->dumptime_invocation_count();
-    dt_backedges = mdh->dumptime_backedge_count();
+    mdo_dt_invocations = mdh->dumptime_invocation_count();
+    mdo_dt_backedges = mdh->dumptime_backedge_count();
   }
-  tty->print(" %stotal=%d,%d %smdo=%d(%d),%d(%d) dumptime=%d,%d", prefix,
+  tty->print(" %stotal=%d,%d %smdo=%d(%d),%d(%d) dumptime=%d(%d),%d(%d)", prefix,
       invocation_count, backedge_count, prefix,
       mdo_invocations, mdo_invocations_start,
       mdo_backedges, mdo_backedges_start,
-      dt_invocations, dt_backedges);
+      dt_invocation_count, mdo_dt_invocations,
+      dt_backedge_count, mdo_dt_backedges);
   tty->print(" %smax levels=%d,%d", prefix,
       m->highest_comp_level(), m->highest_osr_comp_level());
 }
@@ -959,14 +962,6 @@ bool CompilationPolicy::is_method_profiled(const methodHandle& method) {
   if (mdo != nullptr) {
     int i = mdo->invocation_count_delta();
     int b = mdo->backedge_count_delta();
-    int i_start = mdo->invocation_count_start();
-    int b_start = mdo->backedge_count_start();
-    if (i_start == 0) {
-      i += mdo->dumptime_invocation_count();
-    }
-    if (b_start == 0) {
-      b += mdo->dumptime_backedge_count();
-    }
     return CallPredicate::apply_scaled(method, CompLevel_full_profile, i, b, 1);
   }
   return false;
@@ -1157,14 +1152,6 @@ CompLevel CompilationPolicy::common(const methodHandle& method, CompLevel cur_le
             if (mdo->would_profile() || CompilationModeFlag::disable_intermediate()) {
               int mdo_i = mdo->invocation_count_delta();
               int mdo_b = mdo->backedge_count_delta();
-              int i_start = mdo->invocation_count_start();
-              int b_start = mdo->backedge_count_start();
-              if (i_start == 0) {
-                mdo_i += mdo->dumptime_invocation_count();
-              }
-              if (b_start == 0) {
-                mdo_b += mdo->dumptime_backedge_count();
-              }
               if (Predicate::apply(method, cur_level, mdo_i, mdo_b)) {
                 next_level = CompLevel_full_optimization;
               }

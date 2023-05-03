@@ -2310,8 +2310,23 @@ public:
     return _dt_backedge_counter;
   }
 
-  int invocation_count_delta() { return invocation_count() - invocation_count_start(); }
-  int backedge_count_delta()   { return backedge_count()   - backedge_count_start();   }
+  int invocation_count_delta() {
+    // If the method has not been deoptimized in this run, add the dumptime invocation count.
+    // Note that if the method has been deoptimized, invocation_count_start would be non-zero.
+    if (invocation_count_start() == 0) {
+      return invocation_count() + dumptime_invocation_count();
+    } else {
+      return invocation_count() - invocation_count_start();
+    }
+  }
+
+  int backedge_count_delta() {
+    if (backedge_count_start() == 0) {
+      return backedge_count() + dumptime_backedge_count();
+    } else {
+      return backedge_count()   - backedge_count_start();
+    }
+  }
 
   void reset_start_counters() {
     _invocation_counter_start = invocation_count();

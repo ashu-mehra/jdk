@@ -74,6 +74,18 @@ void MethodCounters::print_value_on(outputStream* st) const {
 }
 
 void MethodCounters::remove_unshareable_info() {
+  if (invocation_counter()->carry()) {
+    _dt_invocation_counter = InvocationCounter::count_limit;
+  } else {
+    _dt_invocation_counter = invocation_counter()->count();
+  }
+  if (backedge_counter()->carry()) {
+    _dt_backedge_counter = InvocationCounter::count_limit;
+  } else {
+    _dt_backedge_counter = backedge_counter()->count();
+  }
+  invocation_counter()->reset();
+  backedge_counter()->reset();
   set_interpreter_throwout_count(0);
   set_prev_time(0);
   set_prev_event_count(0);

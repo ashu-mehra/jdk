@@ -37,6 +37,8 @@ class MethodCounters : public Metadata {
  private:
   InvocationCounter _invocation_counter;         // Incremented before each activation of the method - used to trigger frequency-based optimizations
   InvocationCounter _backedge_counter;           // Incremented before each backedge taken - used to trigger frequency-based optimizations
+  int               _dt_invocation_counter;
+  int               _dt_backedge_counter;
   jlong             _prev_time;                   // Previous time the rate was acquired
   float             _rate;                        // Events (invocation and backedge counter increments) per millisecond
   int               _invoke_mask;                 // per-method Tier0InvokeNotifyFreqLog
@@ -136,5 +138,12 @@ class MethodCounters : public Metadata {
 
   void remove_unshareable_info();
   void restore_unshareable_info(const methodHandle& mh);
+
+  int dumptime_invocation_count() {
+    return _dt_invocation_counter;
+  }
+  int dumptime_backedge_count() {
+    return _dt_backedge_counter;
+  }
 };
 #endif // SHARE_OOPS_METHODCOUNTERS_HPP
