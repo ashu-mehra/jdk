@@ -141,6 +141,7 @@ class Method : public Metadata {
   AccessFlags access_flags() const               { return _access_flags;  }
   void set_access_flags(AccessFlags flags)       { _access_flags = flags; }
 
+  MethodFlags method_flags() const               { return _flags; }
   // name
   Symbol* name() const                           { return constants()->symbol_at(name_index()); }
   u2 name_index() const                          { return constMethod()->name_index();         }

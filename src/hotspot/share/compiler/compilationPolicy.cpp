@@ -454,8 +454,8 @@ void CompilationPolicy::print_event(EventType type, const Method* m, const Metho
 
   tty->print(" weight=%.2lf", weight((Method *)m));
   tty->print(" hcl=%d", m->highest_comp_level());
+  print_counters("", m);
   if (type != COMPILE) {
-    print_counters("", m);
     if (inlinee_event) {
       print_counters("inlinee ", im);
     }
@@ -486,6 +486,9 @@ void CompilationPolicy::print_event(EventType type, const Method* m, const Metho
     methodHandle mh(Thread::current(), (Method *)m);
     if (is_old(mh)) {
       tty->print(" old");
+    }
+    if (m->is_deoptimized()) {
+      tty->print(" deoptimized");
     }
   }
   tty->print_cr("]");
@@ -765,6 +768,10 @@ void CompilationPolicy::reprofile(ScopeDesc* trap_scope, bool is_osr) {
       print_event(REPROFILE, sd->method(), sd->method(), InvocationEntryBci, CompLevel_none);
     }
     MethodData* mdo = sd->method()->method_data();
+    ResourceMark rm;
+    char *method_name = sd->method()->name_and_sig_as_C_string();
+    log_info(cds)("Marking method %s as deoptimized, flags=%x", method_name, sd->method()->method_flags().as_int());
+    sd->method()->set_is_deoptimized();
     if (mdo != nullptr) {
       mdo->reset_start_counters();
     }
@@ -939,21 +946,32 @@ bool CompilationPolicy::is_old(const methodHandle& method) {
 }
 
 double CompilationPolicy::weight(Method* method) {
-  return (double)(method->rate() + 1) * (method->invocation_count() + 1) * (method->backedge_count() + 1);
+  return (double)(method->rate() + 1) * (method->invocation_count() + method->dumptime_invocation_count() + 1) * (method->backedge_count() + method->dumptime_backedge_count() + 1);
 }
 
 // Apply heuristics and return true if x should be compiled before y
 bool CompilationPolicy::compare_methods(Method* x, Method* y) {
-  if (x->highest_comp_level() > y->highest_comp_level()) {
-    // recompilation after deopt
-    return true;
-  } else
-    if (x->highest_comp_level() == y->highest_comp_level()) {
-      if (weight(x) > weight(y)) {
-        return true;
-      }
+  if (UseMethodDataFromCDS) {
+    if ((x->is_deoptimized() && y->is_deoptimized()) ||
+        (!x->is_deoptimized() && !y->is_deoptimized())) {
+      return weight(x) > weight(y);
+    } else if (x->is_deoptimized()) {
+      return true;
+    } else {
+      return false;
     }
-  return false;
+  } else {
+    if (x->highest_comp_level() > y->highest_comp_level()) {
+      // recompilation after deopt
+      return true;
+    } else
+      if (x->highest_comp_level() == y->highest_comp_level()) {
+        if (weight(x) > weight(y)) {
+          return true;
+        }
+      }
+    return false;
+  }
 }
 
 // Is method profiled enough?
