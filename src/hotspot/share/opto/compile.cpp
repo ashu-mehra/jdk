@@ -656,6 +656,7 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
   C = this;
   CompileWrapper cw(this);
 
+#if 0
   if (CITimeVerbose) {
     tty->print(" ");
     target->holder()->name()->print();
@@ -663,6 +664,8 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
     target->print_short_name();
     tty->print("  ");
   }
+#endif
+
   TraceTime t1("Total compilation time", &_t_totalCompilation, CITime, CITimeVerbose);
   TraceTime t2(nullptr, &_t_methodCompilation, CITime, false);
 
