@@ -681,7 +681,7 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, ClassUnloadingWithConcurrentMark, true,                     \
           "Do unloading of classes with a concurrent marking cycle")        \
                                                                             \
-  notproduct(bool, PrintSystemDictionaryAtExit, false,                      \
+  product(bool, PrintSystemDictionaryAtExit, false,                      \
           "Print the system dictionary at exit")                            \
                                                                             \
   notproduct(bool, PrintClassLoaderDataGraphAtExit, false,                  \

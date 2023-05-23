@@ -372,6 +372,11 @@ void print_statistics() {
     OptoRuntime::print_named_counters();
   }
 #endif
+  if (PrintSystemDictionaryAtExit) {
+    ResourceMark rm;
+    MutexLocker mcld(ClassLoaderDataGraph_lock);
+    SystemDictionary::print();
+  }
 
   // Native memory tracking data
   if (PrintNMTStatistics) {

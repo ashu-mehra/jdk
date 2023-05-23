@@ -592,6 +592,8 @@ class CompileReplay : public StackObj {
   Method* parse_method(TRAPS) {
     InstanceKlass* k = (InstanceKlass*)parse_klass(CHECK_NULL);
     if (k == nullptr) {
+      int pos = _bufptr - _buffer + 1;
+      tty->print_cr("Can't find holder klass at position %d", pos);
       report_error("Can't find holder klass");
       return nullptr;
     }
@@ -966,6 +968,12 @@ class CompileReplay : public StackObj {
     }
     new_ciInstanceKlass(k);
     ConstantPool* cp = k->constants();
+    bool found = false;
+    tty->print_cr("process_ciInstanceKlass: %s", k->external_name());
+    if (!strcmp(k->external_name(), "org.thymeleaf.model.IText")) {
+      found = true;
+      tty->print_cr("length: %d, cp->length: %d\n", length, cp->length());
+    }
     if (length != cp->length()) {
       report_error("constant pool length mismatch: wrong class files?");
       return;
