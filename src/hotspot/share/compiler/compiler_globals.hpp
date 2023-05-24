@@ -66,7 +66,7 @@
   product(bool, CITimeVerbose, false,                                       \
           "be more verbose in compilation timings")                         \
                                                                             \
-  develop(bool, CITimeEach, false,                                          \
+  product(bool, CITimeEach, false,                                          \
           "display timing information after each successful compilation")   \
                                                                             \
   develop(bool, CICountOSR, false,                                          \

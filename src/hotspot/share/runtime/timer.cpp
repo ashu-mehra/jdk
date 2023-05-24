@@ -28,6 +28,8 @@
 #include "runtime/os.hpp"
 #include "runtime/timer.hpp"
 #include "utilities/ostream.hpp"
+#include <pthread.h>
+#include <time.h>
 
 double TimeHelper::counter_to_seconds(jlong counter) {
   double freq  = (double) os::elapsed_frequency();
@@ -61,18 +63,29 @@ void elapsedTimer::start() {
   if (!_active) {
     _active = true;
     _start_counter = os::elapsed_counter();
+    struct timespec tp;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &tp);
+    _thread_start_counter = jlong(tp.tv_sec) * 1000000000 + jlong(tp.tv_nsec);
   }
 }
 
 void elapsedTimer::stop() {
   if (_active) {
     _counter += os::elapsed_counter() - _start_counter;
+    struct timespec tp;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &tp);
+    jlong end_time = jlong(tp.tv_sec) * 1000000000 + jlong(tp.tv_nsec);
+    _thread_counter = end_time - _thread_start_counter;
     _active = false;
   }
 }
 
 double elapsedTimer::seconds() const {
  return TimeHelper::counter_to_seconds(_counter);
+}
+
+double elapsedTimer::thread_seconds() const {
+ return TimeHelper::counter_to_seconds(_thread_counter);
 }
 
 jlong elapsedTimer::milliseconds() const {

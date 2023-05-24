@@ -34,6 +34,8 @@ class elapsedTimer {
  private:
   jlong _counter;
   jlong _start_counter;
+  jlong _thread_start_counter;
+  jlong _thread_counter;
   bool  _active;
  public:
   elapsedTimer()             { _active = false; reset(); }
@@ -43,6 +45,7 @@ class elapsedTimer {
   void stop();
   void reset()               { _counter = 0; }
   double seconds() const;
+  double thread_seconds() const;
   jlong milliseconds() const;
   jlong ticks() const        { return _counter; }
   jlong active_ticks() const;

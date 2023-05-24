@@ -81,7 +81,7 @@ TraceTime::~TraceTime() {
   if (_print) {
     _print("%s, %3.7f secs", _title, _t.seconds());
   } else {
-    tty->print_cr("[%s, %3.7f secs]", _title, _t.seconds());
+    tty->print_cr("[%s, %3.7f secs, %3.7f]", _title, _t.seconds(), _t.thread_seconds());
     tty->flush();
   }
 }
