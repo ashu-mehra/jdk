@@ -518,20 +518,18 @@ class CollectedHeap : public CHeapObj<mtGC> {
   virtual HeapWord* allocate_loaded_archive_space(size_t size) { return nullptr; }
   virtual void complete_loaded_archive_space(MemRegion archive_space) { }
 
-  // Commit the heap memory for CDS archive area according to the requested size
-  // and alignment. Return MemRegion corresponding to the commited heap memory.
+  // Commit the heap memory for CDS heap archive area according to the requested size
+  // Return MemRegion corresponding to the commited heap memory.
   // In case of failure, an empty MemRegion is returned.
-  virtual MemRegion alloc_archive_heap_memory(size_t word_size, size_t alignment) {
-    return MemRegion(0, size_t(0));
-  }
+  virtual HeapWord* alloc_archive_space(size_t word_size) { return nullptr; }
 
-  // Handle any failure in mapping the CDS archive area.
-  virtual void handle_failed_archive_heap_mapping(MemRegion range) { return; }
+  // Handle any failure in loading the CDS archive area.
+  virtual void archive_heap_loading_failed(MemRegion range) { return; }
 
-  // Insert any required filler objects in memory area around the specified
-  // range to make the heap parseable. This must be called after
-  // alloc_archive_heap_memory, and after class loading has occurred.
-  virtual void fixup_archive_heap_memory(MemRegion range) { return; }
+  // This must be called after alloc_archive_space, and after class loading has occurred.
+  // GC policy can take necessary actions to make the archive space usable,
+  // such as inserting filler objects to make it parseable, or updating block offset table.
+  virtual void fixup_archive_space(MemRegion range) { return; }
 
   virtual bool is_oop(oop object) const;
   // Non product verification and debugging.

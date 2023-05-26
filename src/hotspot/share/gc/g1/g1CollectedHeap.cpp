@@ -528,21 +528,17 @@ void G1CollectedHeap::iterate_regions_in_range(MemRegion range, const Func& func
   }
 }
 
-
-MemRegion G1CollectedHeap::alloc_archive_heap_memory(size_t word_size, size_t alignment) {
+HeapWord* G1CollectedHeap::alloc_archive_space(size_t word_size) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(is_object_aligned(word_size), "must be");
-  assert(is_object_aligned(alignment), "must be");
   MutexLocker x(Heap_lock);
-  // Empty range is returned in case of failure.
-  MemRegion empty_range = MemRegion(0, size_t(0)); // typecast size_t(0) is needed to resolve ambiguity
 
   MemRegion reserved = _hrm.reserved();
 
   if (reserved.word_size() <= word_size) {
     log_info(gc, heap)("Unable to allocate regions as archive heap is too large; size requested = " SIZE_FORMAT
                        " bytes, heap = " SIZE_FORMAT " bytes", word_size, reserved.word_size());
-    return empty_range;
+    return nullptr;
   }
 
   // Temporarily disable pretouching of heap pages. This interface is used
@@ -552,14 +548,12 @@ MemRegion G1CollectedHeap::alloc_archive_heap_memory(size_t word_size, size_t al
   size_t commits = 0;
   // Attempt to allocate towards the end of the heap.
   HeapWord* start_addr = reserved.end() - word_size;
-  // Align the memory range as requested.
-  start_addr = (HeapWord*)align_down(start_addr, alignment);
-  // Now align the memory range to the region boundary.
+  // Align the memory range to the region boundary.
   start_addr = (HeapWord*)align_down(start_addr, HeapRegion::GrainBytes);
   MemRegion range = MemRegion(start_addr, word_size);
   HeapWord* last_address = range.last();
   if (!_hrm.allocate_containing_regions(range, &commits, workers())) {
-    return empty_range;
+    return nullptr;
   }
   increase_used(word_size * HeapWordSize);
   if (commits != 0) {
@@ -581,10 +575,10 @@ MemRegion G1CollectedHeap::alloc_archive_heap_memory(size_t word_size, size_t al
   };
 
   iterate_regions_in_range(range, set_region_to_old);
-  return range;
+  return start_addr;
 }
 
-void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion range) {
+void G1CollectedHeap::fixup_archive_space(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
 
   iterate_regions_in_range(range,
@@ -593,12 +587,7 @@ void G1CollectedHeap::populate_archive_regions_bot_part(MemRegion range) {
                            });
 }
 
-void G1CollectedHeap::fixup_archive_heap_memory(MemRegion range) {
-  assert(!is_init_completed(), "Expect to be called at JVM init time");
-  populate_archive_regions_bot_part(range);
-}
-
-void G1CollectedHeap::handle_failed_archive_heap_mapping(MemRegion range) {
+void G1CollectedHeap::archive_heap_loading_failed(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   MemRegion reserved = _hrm.reserved();
   size_t size_used = 0;

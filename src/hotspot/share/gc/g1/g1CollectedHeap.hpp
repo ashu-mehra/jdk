@@ -706,19 +706,17 @@ public:
   void iterate_regions_in_range(MemRegion range, const Func& func);
 
   // Commit the required number of G1 region(s) according to the requested size
-  // and alignment, mark them as 'old' region(s) and return the MemRegion 
+  // mark them as 'old' region(s) and return the MemRegion
   // corresponsing to the committed G1 regions.
   // In case of failure, an empty MemRegion is returned.
-  MemRegion alloc_archive_heap_memory(size_t word_size, size_t alignment) override;
+  HeapWord* alloc_archive_space(size_t word_size) override;
 
   // Deallocate the heap regions corresponding to CDS archive area if there is any
   // failure to map the archive area.
-  void handle_failed_archive_heap_mapping(MemRegion range) override;
+  void archive_heap_loading_failed(MemRegion range) override;
 
-  // Insert any required filler objects in the G1 regions around the specified
-  // range to make the regions parseable. This must be called after
-  // alloc_archive_regions, and after class loading has occurred.
-  void fixup_archive_heap_memory(MemRegion range) override;
+  // Update the BOT for the regions corresponding to the archive space.
+  void fixup_archive_space(MemRegion range) override;
 
 private:
 
@@ -757,10 +755,6 @@ private:
   G1HeapVerifier::G1VerifyType young_collection_verify_type() const;
   void verify_before_young_collection(G1HeapVerifier::G1VerifyType type);
   void verify_after_young_collection(G1HeapVerifier::G1VerifyType type);
-
-  // Populate the G1BlockOffsetTablePart for regions with the given
-  // memory range.
-  void populate_archive_regions_bot_part(MemRegion range);
 
 public:
   // Start a concurrent cycle.

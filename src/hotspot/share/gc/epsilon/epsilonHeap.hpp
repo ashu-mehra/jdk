@@ -92,7 +92,7 @@ public:
   }
 
   // Allocation
-  HeapWord* allocate_work(size_t size, bool verbose = true, size_t alignment = 0);
+  HeapWord* allocate_work(size_t size, bool verbose = true);
   HeapWord* mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) override;
   HeapWord* allocate_new_tlab(size_t min_size,
                               size_t requested_size,
@@ -133,11 +133,10 @@ public:
   MemRegion reserved_region() const { return _reserved; }
   bool is_in_reserved(const void* addr) const { return _reserved.contains(addr); }
 
-  MemRegion alloc_archive_heap_memory(size_t word_size, size_t alignment) override;
+  HeapWord* alloc_archive_space(size_t word_size) override;
   // In case of failure to map the the heap region corresponding to CDS archive area
   // fill the heap region with dummy objects.
-  void handle_failed_archive_heap_mapping(MemRegion range) override;
-  void fixup_archive_heap_memory(MemRegion range) override;
+  void archive_heap_loading_failed(MemRegion range) override;
 
   // Support for loading objects from CDS archive into the heap
   bool can_load_archived_objects() const override { return UseCompressedOops; }

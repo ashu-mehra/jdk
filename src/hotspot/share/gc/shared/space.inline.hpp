@@ -43,46 +43,6 @@ inline HeapWord* Space::block_start(const void* p) {
   return block_start_const(p);
 }
 
-// This version requires locking.
-inline HeapWord* ContiguousSpace::allocate_impl(size_t size) {
-  assert(Heap_lock->owned_by_self() ||
-         (SafepointSynchronize::is_at_safepoint() && Thread::current()->is_VM_thread()),
-         "not locked");
-  HeapWord* obj = top();
-  if (pointer_delta(end(), obj) >= size) {
-    HeapWord* new_top = obj + size;
-    set_top(new_top);
-    assert(is_aligned(obj) && is_aligned(new_top), "checking alignment");
-    return obj;
-  } else {
-    return NULL;
-  }
-}
-
-// This version is lock-free.
-inline HeapWord* ContiguousSpace::par_allocate_aligned_impl(size_t size, size_t alignment) {
-  do {
-    HeapWord* curr_top = top();
-    HeapWord* obj = curr_top;
-    if (alignment > 0) {
-      obj = align_up(curr_top, alignment);
-    }
-    if (pointer_delta(end(), obj) >= size) {
-      HeapWord* new_top = obj + size;
-      HeapWord* result = Atomic::cmpxchg(top_addr(), curr_top, new_top);
-      // result can be one of two:
-      //  the old top value: the exchange succeeded
-      //  otherwise: the new value of the top is returned.
-      if (result == curr_top) {
-        assert(is_aligned(obj) && is_aligned(new_top), "checking alignment");
-        return curr_top;
-      }
-    } else {
-      return NULL;
-    }
-  } while (true);
-}
-
 #if INCLUDE_SERIALGC
 inline HeapWord* TenuredSpace::allocate(size_t size) {
   HeapWord* res = ContiguousSpace::allocate(size);
@@ -95,7 +55,7 @@ inline HeapWord* TenuredSpace::allocate(size_t size) {
 // Because of the requirement of keeping "_offsets" up to date with the
 // allocations, we sequentialize these with a lock.  Therefore, best if
 // this is used for larger LAB allocations only.
-inline HeapWord* TenuredSpace::par_allocate_aligned_impl(size_t size, size_t alignment) {
+inline HeapWord* TenuredSpace::par_allocate(size_t size) {
   MutexLocker x(&_par_alloc_lock);
   // This ought to be just "allocate", because of the lock above, but that
   // ContiguousSpace::allocate asserts that either the allocating thread
@@ -105,7 +65,7 @@ inline HeapWord* TenuredSpace::par_allocate_aligned_impl(size_t size, size_t ali
   // here.  But this will do for now, especially in light of the comment
   // above.  Perhaps in the future some lock-free manner of keeping the
   // coordination.
-  HeapWord* res = ContiguousSpace::par_allocate_aligned_impl(size, alignment);
+  HeapWord* res = ContiguousSpace::par_allocate(size);
   if (res != nullptr) {
     _offsets.alloc_block(res, size);
   }

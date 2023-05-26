@@ -2137,28 +2137,39 @@ bool FileMapInfo::map_heap_region_impl() {
   log_info(cds)("Preferred address to map heap data (to avoid relocation) is " INTPTR_FORMAT, p2i(requested_start));
 
   // allocate from java heap
-  _mapped_heap_memregion = Universe::heap()->alloc_archive_heap_memory(word_size,
-                                                                       MetaspaceShared::core_region_alignment());
-  if (_mapped_heap_memregion.start() == nullptr) {
+  HeapWord* start = Universe::heap()->alloc_archive_space(word_size);
+  if (start == nullptr) {
     log_info(cds)("UseSharedSpaces: Unable to allocate java heap region for archive heap.");
     return false;
   }
 
-  // Map the archived heap data. No need to call MemTracker::record_virtual_memory_type()
-  // for mapped region as it is part of the reserved java heap, which is already recorded.
+  _mapped_heap_memregion = MemRegion(start, word_size);
+
   char* addr = (char*)_mapped_heap_memregion.start();
-  char* base = os::map_memory(_fd, _full_path, r->file_offset(),
-                              addr, _mapped_heap_memregion.byte_size(), r->read_only(),
-                              r->allow_exec());
-  if (base == nullptr || base != addr) {
-    ArchiveHeapLoader::set_mapping_failed();
-    log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
-                  INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
-                  p2i(addr), _mapped_heap_memregion.byte_size());
-    return false;
+  if (is_aligned(_mapped_heap_memregion.start(), MetaspaceShared::core_region_alignment())) {
+    // Map the archived heap data. No need to call MemTracker::record_virtual_memory_type()
+    // for mapped region as it is part of the reserved java heap, which is already recorded.
+    char* base = os::map_memory(_fd, _full_path, r->file_offset(),
+                                addr, _mapped_heap_memregion.byte_size(), r->read_only(),
+                                r->allow_exec());
+    if (base == nullptr || base != addr) {
+      ArchiveHeapLoader::set_mapping_failed();
+      log_info(cds)("UseSharedSpaces: Unable to map at required address in java heap. "
+                    INTPTR_FORMAT ", size = " SIZE_FORMAT " bytes",
+                    p2i(addr), _mapped_heap_memregion.byte_size());
+      return false;
+    }
+  } else {
+    if (!read_region(MetaspaceShared::hp, (char *)addr, size, false)) {
+      // There's no easy way to free the buffer, so we will fill it with zero later
+      // in fill_failed_loaded_heap(), and it will eventually be GC'ed.
+      log_warning(cds)("UseSharedSpaces: Unable to read heap region. Archived objects are disabled");
+      ArchiveHeapLoader::set_loading_failed();
+      return false;
+    }
   }
 
-  r->set_mapped_base(base);
+  r->set_mapped_base(addr);
   if (VerifySharedSpaces && !r->check_region_crc()) {
     ArchiveHeapLoader::set_mapping_failed();
     log_info(cds)("UseSharedSpaces: mapped heap region is corrupt");
@@ -2220,13 +2231,13 @@ void FileMapInfo::patch_heap_embedded_pointers() {
 void FileMapInfo::fixup_mapped_heap_region() {
   if (ArchiveHeapLoader::is_mapped()) {
     assert(!_mapped_heap_memregion.is_empty(), "sanity");
-    Universe::heap()->fixup_archive_heap_memory(_mapped_heap_memregion);
+    Universe::heap()->fixup_archive_space(_mapped_heap_memregion);
   }
 }
 
 void FileMapInfo::handle_failed_mapping() {
   assert(UseEpsilonGC || UseG1GC, "this is applicable only for Epsilon or G1");
-  Universe::heap()->handle_failed_archive_heap_mapping(_mapped_heap_memregion);
+  Universe::heap()->archive_heap_loading_failed(_mapped_heap_memregion);
 }
 #endif // INCLUDE_CDS_JAVA_HEAP
 

@@ -103,13 +103,13 @@ EpsilonHeap* EpsilonHeap::heap() {
   return named_heap<EpsilonHeap>(CollectedHeap::Epsilon);
 }
 
-HeapWord* EpsilonHeap::allocate_work(size_t size, bool verbose, size_t alignment) {
+HeapWord* EpsilonHeap::allocate_work(size_t size, bool verbose) {
   assert(is_object_aligned(size), "Allocation size should be aligned: " SIZE_FORMAT, size);
 
   HeapWord* res = nullptr;
   while (true) {
     // Try to allocate, assume space is available
-    res = _space->par_allocate(size, alignment);
+    res = _space->par_allocate(size);
     if (res != nullptr) {
       break;
     }
@@ -119,7 +119,7 @@ HeapWord* EpsilonHeap::allocate_work(size_t size, bool verbose, size_t alignment
       MutexLocker ml(Heap_lock);
 
       // Try to allocate under the lock, assume another thread was able to expand
-      res = _space->par_allocate(size, alignment);
+      res = _space->par_allocate(size);
       if (res != nullptr) {
         break;
       }
@@ -267,44 +267,25 @@ HeapWord* EpsilonHeap::allocate_loaded_archive_space(size_t size) {
   return allocate_work(size, /* verbose = */false);
 }
 
-MemRegion EpsilonHeap::alloc_archive_heap_memory(size_t word_size, size_t alignment) {
+HeapWord* EpsilonHeap::alloc_archive_space(size_t word_size) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
   assert(is_object_aligned(word_size), "must be");
-  assert(is_object_aligned(alignment), "must be");
   // Empty range is returned in case of failure.
-  MemRegion empty_range = MemRegion(0, size_t(0)); // typecast size_t(0) is needed to resolve ambiguity
-
   if (max_capacity() < word_size * HeapWordSize) {
     log_info(gc, heap)("Unable to allocate memory as archive heap is too large; size requested = " SIZE_FORMAT
                        " bytes, heap = " SIZE_FORMAT " bytes", word_size * HeapWordSize, max_capacity());
-    return empty_range;
+    return nullptr;
   }
-  HeapWord* result = allocate_work(word_size, false, alignment);
+  HeapWord* result = allocate_work(word_size, false);
   if (!result) {
-    return empty_range;
+    return nullptr;
   }
-  set_top_at_archive_allocation(result);
-  HeapWord* start_address = align_up(result, alignment);
-  return MemRegion(start_address, word_size);
+  return result;
 }
 
-void EpsilonHeap::handle_failed_archive_heap_mapping(MemRegion range) {
+void EpsilonHeap::archive_heap_loading_failed(MemRegion range) {
   assert(!is_init_completed(), "Expect to be called at JVM init time");
-  size_t fill_size = range.word_size();
-  HeapWord* cached_top = top_at_archive_allocation();
-  if (range.start() > cached_top) {
-    fill_size += pointer_delta(range.start(), cached_top);
-  }
-  CollectedHeap::fill_with_objects(cached_top, fill_size);
-}
-
-void EpsilonHeap::fixup_archive_heap_memory(MemRegion range) {
-  assert(!is_init_completed(), "Expect to be called at JVM init time");
-  HeapWord* cached_top = top_at_archive_allocation();
-  if (range.start() > cached_top) {
-    size_t fill_size = pointer_delta(range.start(), cached_top);
-    CollectedHeap::fill_with_objects(cached_top, fill_size);
-  }
+  CollectedHeap::fill_with_objects(range.start(), range.word_size());
 }
 
 void EpsilonHeap::collect(GCCause::Cause cause) {

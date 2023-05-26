@@ -589,9 +589,50 @@ size_t ContiguousSpace::block_size(const HeapWord* p) const {
   }
 }
 
+// This version requires locking.
+inline HeapWord* ContiguousSpace::allocate_impl(size_t size) {
+  assert(Heap_lock->owned_by_self() ||
+         (SafepointSynchronize::is_at_safepoint() && Thread::current()->is_VM_thread()),
+         "not locked");
+  HeapWord* obj = top();
+  if (pointer_delta(end(), obj) >= size) {
+    HeapWord* new_top = obj + size;
+    set_top(new_top);
+    assert(is_aligned(obj) && is_aligned(new_top), "checking alignment");
+    return obj;
+  } else {
+    return nullptr;
+  }
+}
+
+// This version is lock-free.
+inline HeapWord* ContiguousSpace::par_allocate_impl(size_t size) {
+  do {
+    HeapWord* obj = top();
+    if (pointer_delta(end(), obj) >= size) {
+      HeapWord* new_top = obj + size;
+      HeapWord* result = Atomic::cmpxchg(top_addr(), obj, new_top);
+      // result can be one of two:
+      //  the old top value: the exchange succeeded
+      //  otherwise: the new value of the top is returned.
+      if (result == obj) {
+        assert(is_aligned(obj) && is_aligned(new_top), "checking alignment");
+        return obj;
+      }
+    } else {
+      return nullptr;
+    }
+  } while (true);
+}
+
 // Requires locking.
 HeapWord* ContiguousSpace::allocate(size_t size) {
   return allocate_impl(size);
+}
+
+// Lock-free.
+HeapWord* ContiguousSpace::par_allocate(size_t size) {
+  return par_allocate_impl(size);
 }
 
 #if INCLUDE_SERIALGC

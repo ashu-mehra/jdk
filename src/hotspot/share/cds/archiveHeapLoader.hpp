@@ -89,6 +89,11 @@ public:
     CDS_JAVA_HEAP_ONLY(return _mapping_failed;)
     NOT_CDS_JAVA_HEAP_RETURN_(false);
   }
+  static void set_loading_failed() {
+    CDS_JAVA_HEAP_ONLY(_loading_failed = true;)
+    NOT_CDS_JAVA_HEAP_RETURN;
+  }
+
   // NarrowOops stored in the CDS archive may use a different encoding scheme
   // than CompressedOops::{base,shift} -- see FileMapInfo::map_heap_region_impl.
   // To decode them, do not use CompressedOops::decode_not_null. Use this
