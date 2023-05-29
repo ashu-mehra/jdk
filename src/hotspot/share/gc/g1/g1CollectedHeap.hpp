@@ -707,17 +707,17 @@ public:
 
   // Commit the required number of G1 region(s) according to the size requested
   // and mark them as 'old' region(s).
-  HeapWord* alloc_archive_regions(size_t word_size);
+  HeapWord* alloc_archive_space(size_t word_size);
 
   // Populate the G1BlockOffsetTablePart for archived regions with the given
   // memory range.
-  void populate_archive_regions_bot_part(MemRegion range);
+  void fixup_archive_space(MemRegion range);
 
   // For the specified range, uncommit the containing G1 regions
-  // which had been allocated by alloc_archive_regions. This should be called
+  // which had been allocated by alloc_archive_space. This should be called
   // at JVM init time if the archive heap's contents cannot be used (e.g., if
   // CRC check fails).
-  void dealloc_archive_regions(MemRegion range);
+  void handle_archive_space_failure(MemRegion range);
 
 private:
 
@@ -1040,10 +1040,6 @@ public:
 
   inline G1HeapRegionAttr region_attr(const void* obj) const;
   inline G1HeapRegionAttr region_attr(uint idx) const;
-
-  MemRegion reserved() const {
-    return _hrm.reserved();
-  }
 
   bool is_in_reserved(const void* addr) const {
     return reserved().contains(addr);
