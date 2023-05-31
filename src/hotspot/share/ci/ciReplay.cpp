@@ -970,11 +970,8 @@ class CompileReplay : public StackObj {
     ConstantPool* cp = k->constants();
     bool found = false;
     tty->print_cr("process_ciInstanceKlass: %s", k->external_name());
-    if (!strcmp(k->external_name(), "org.thymeleaf.model.IText")) {
-      found = true;
-      tty->print_cr("length: %d, cp->length: %d\n", length, cp->length());
-    }
     if (length != cp->length()) {
+      tty->print_cr("length: %d, cp->length: %d\n", length, cp->length());
       report_error("constant pool length mismatch: wrong class files?");
       return;
     }

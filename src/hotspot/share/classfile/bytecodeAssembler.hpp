@@ -81,6 +81,26 @@ class BytecodeCPEntry {
   BytecodeCPEntry() : _tag(ERROR_TAG) { _u.hash = 0; }
   BytecodeCPEntry(u1 tag) : _tag(tag) { _u.hash = 0; }
 
+  void print(outputStream *s) const {
+    s->print("tag: %d", _tag);
+    switch(_tag) {
+    case UTF8:
+      s->print_cr(" utf8: %p", _u.utf8);
+      break;
+    case KLASS:
+      s->print_cr(" klass: %d", _u.klass);
+      break;
+    case STRING:
+      s->print_cr(" string: %d", _u.string);
+      break;
+    case NAME_AND_TYPE:
+      s->print_cr(" name: %d, type: %d", _u.name_and_type.name_index, _u.name_and_type.type_index);
+      break;
+    case METHODREF:
+      s->print_cr(" class: %d, nat: %d", _u.methodref.class_index, _u.methodref.name_and_type_index);
+      break;
+    }
+  }
   static BytecodeCPEntry utf8(Symbol* symbol) {
     BytecodeCPEntry bcpe(UTF8);
     bcpe._u.utf8 = symbol;
@@ -93,9 +113,9 @@ class BytecodeCPEntry {
     return bcpe;
   }
 
-  static BytecodeCPEntry string(u2 index) {
+  static BytecodeCPEntry string(Symbol* symbol) {
     BytecodeCPEntry bcpe(STRING);
-    bcpe._u.string = index;
+    bcpe._u.utf8 = symbol;
     return bcpe;
   }
 
@@ -131,12 +151,26 @@ class BytecodeConstantPool : ResourceObj {
   ConstantPool* _orig;
   GrowableArray<BytecodeCPEntry> _entries;
   IndexHash _indices;
+  int _orig_cp_added;
 
   u2 find_or_add(BytecodeCPEntry const& bcpe);
 
+  bool _debug;
+
  public:
 
-  BytecodeConstantPool(ConstantPool* orig) : _orig(orig) {}
+  BytecodeConstantPool(ConstantPool* orig) : _orig(orig) {
+    _orig_cp_added = 0;
+    _debug = false;
+    //if (!strcmp(_orig->pool_holder()->external_name(), "org.thymeleaf.model.IText")) {
+    if (UseNewCode) {
+      //tty->print_cr("Creating BytecodeConstantPool for %s", _orig->pool_holder()->external_name());
+      _debug = false;
+    }
+    init();
+  }
+
+  void init();
 
   BytecodeCPEntry const& at(u2 index) const { return _entries.at(index); }
 
@@ -153,7 +187,8 @@ class BytecodeConstantPool : ResourceObj {
   }
 
   u2 string(Symbol* str) {
-    return find_or_add(BytecodeCPEntry::string(utf8(str)));
+    utf8(str);
+    return find_or_add(BytecodeCPEntry::string(str));
   }
 
   u2 name_and_type(Symbol* name, Symbol* sig) {
