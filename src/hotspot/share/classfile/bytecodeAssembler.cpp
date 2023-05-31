@@ -31,9 +31,41 @@
 #include "runtime/handles.inline.hpp"
 #include "utilities/bytes.hpp"
 
-u2 BytecodeConstantPool::find_or_add(BytecodeCPEntry const& bcpe) {
+void BytecodeConstantPool::init() {
+  for (int i = 1; i < _orig->length(); i++) {
+    bool new_entry = false;
+    BytecodeCPEntry entry;
+    switch(_orig->tag_at(i).value()) {
+    case JVM_CONSTANT_Class:
+    case JVM_CONSTANT_UnresolvedClass:
+      entry = BytecodeCPEntry::klass(_orig->klass_slot_at(i).name_index());
+      break;
+    case JVM_CONSTANT_Utf8:
+      entry = BytecodeCPEntry::utf8(_orig->symbol_at(i));
+      break;
+    case JVM_CONSTANT_NameAndType:
+      entry = BytecodeCPEntry::name_and_type(_orig->name_ref_index_at(i), _orig->signature_ref_index_at(i));
+      break;
+    case JVM_CONSTANT_Methodref:
+      entry = BytecodeCPEntry::methodref(_orig->uncached_klass_ref_index_at(i), _orig->uncached_name_and_type_ref_index_at(i));
+      break;
+    case JVM_CONSTANT_String:
+      entry = BytecodeCPEntry::string(_orig->unresolved_string_at(i));
+      break;
+    }
+    if (entry._tag != BytecodeCPEntry::tag::ERROR_TAG) {
+      bool created = false;
+      u2* probe =_indices.put_if_absent(entry, i, &created);
+      if (created) {
+        _orig_cp_added += 1;
+        _entries.append(entry);
+      }
+    }
+  }
+}
 
-  u2 index = _entries.length();
+u2 BytecodeConstantPool::find_or_add(BytecodeCPEntry const& bcpe) {
+  u2 index = _orig->length() + _entries.length() - _orig_cp_added;
   bool created = false;
   u2* probe = _indices.put_if_absent(bcpe, index, &created);
   if (created) {
@@ -41,7 +73,7 @@ u2 BytecodeConstantPool::find_or_add(BytecodeCPEntry const& bcpe) {
   } else {
     index = *probe;
   }
-  return index + _orig->length();
+  return index;
 }
 
 ConstantPool* BytecodeConstantPool::create_constant_pool(TRAPS) const {
@@ -49,9 +81,10 @@ ConstantPool* BytecodeConstantPool::create_constant_pool(TRAPS) const {
     return _orig;
   }
 
+  int new_entry_count = _entries.length() - _orig_cp_added;
   ConstantPool* cp = ConstantPool::allocate(
       _orig->pool_holder()->class_loader_data(),
-      _orig->length() + _entries.length(), CHECK_NULL);
+      _orig->length() + new_entry_count, CHECK_NULL);
 
   cp->set_pool_holder(_orig->pool_holder());
   constantPoolHandle cp_h(THREAD, cp);
@@ -60,9 +93,10 @@ ConstantPool* BytecodeConstantPool::create_constant_pool(TRAPS) const {
   // Preserve dynamic constant information from the original pool
   cp->copy_fields(_orig);
 
-  for (int i = 0; i < _entries.length(); ++i) {
+  for (int i = _orig_cp_added; i < _entries.length(); ++i) {
     BytecodeCPEntry entry = _entries.at(i);
-    int idx = i + _orig->length();
+    u2* value = _indices.get(entry);
+    int idx = *value;
     switch (entry._tag) {
       case BytecodeCPEntry::UTF8:
         entry._u.utf8->increment_refcount();
@@ -74,7 +108,7 @@ ConstantPool* BytecodeConstantPool::create_constant_pool(TRAPS) const {
         break;
       case BytecodeCPEntry::STRING:
         cp->unresolved_string_at_put(
-            idx, cp->symbol_at(entry._u.string));
+            idx, entry._u.utf8);
         break;
       case BytecodeCPEntry::NAME_AND_TYPE:
         cp->name_and_type_at_put(idx,

@@ -93,9 +93,9 @@ class BytecodeCPEntry {
     return bcpe;
   }
 
-  static BytecodeCPEntry string(u2 index) {
+  static BytecodeCPEntry string(Symbol* symbol) {
     BytecodeCPEntry bcpe(STRING);
-    bcpe._u.string = index;
+    bcpe._u.utf8 = symbol;
     return bcpe;
   }
 
@@ -131,12 +131,17 @@ class BytecodeConstantPool : ResourceObj {
   ConstantPool* _orig;
   GrowableArray<BytecodeCPEntry> _entries;
   IndexHash _indices;
+  int _orig_cp_added;
 
   u2 find_or_add(BytecodeCPEntry const& bcpe);
 
  public:
 
-  BytecodeConstantPool(ConstantPool* orig) : _orig(orig) {}
+  BytecodeConstantPool(ConstantPool* orig) : _orig(orig), _orig_cp_added(0) {
+    init();
+  }
+
+  void init();
 
   BytecodeCPEntry const& at(u2 index) const { return _entries.at(index); }
 
@@ -153,7 +158,8 @@ class BytecodeConstantPool : ResourceObj {
   }
 
   u2 string(Symbol* str) {
-    return find_or_add(BytecodeCPEntry::string(utf8(str)));
+    utf8(str);
+    return find_or_add(BytecodeCPEntry::string(str));
   }
 
   u2 name_and_type(Symbol* name, Symbol* sig) {
