@@ -464,12 +464,47 @@ public class ConstantPool extends Metadata implements ClassConstants {
     return res;
   }
 
+  public int getBootstrapMethodsCount() {
+    U2Array operands = getOperands();
+    if (operands != null) {
+      return getOperandOffsetAt(0) / 2;
+    } else {
+       return 0;
+    }
+  }
+
+  public int getBootstrapMethodArgsCount(int bsmIndex) {
+    U2Array operands = getOperands();
+    if (Assert.ASSERTS_ENABLED) {
+      Assert.that(operands != null, "Operands is not present");
+    }
+    int bsmOffset = getOperandOffsetAt(bsmIndex);
+    return operands.at(bsmOffset + INDY_ARGC_OFFSET);
+  }
+
+  public short[] getBootstrapMethodAt(int index) {
+    U2Array operands = getOperands();
+    if (operands == null)  return null;  // safety first
+    int basePos = VM.getVM().buildIntFromShorts(operands.at(index * 2 + 0),
+                                                operands.at(index * 2 + 1));
+    int argv = basePos + INDY_ARGV_OFFSET;
+    int argc = operands.at(basePos + INDY_ARGC_OFFSET);
+    int endPos = argv + argc;
+    short[] values = new short[endPos - basePos];
+    for (int j = 0; j < values.length; j++) {
+        values[j] = operands.at(basePos+j);
+    }
+    return values;
+  }
+
   /** Lookup for multi-operand (InvokeDynamic, Dynamic) entries. */
   public short[] getBootstrapSpecifierAt(int i) {
     if (Assert.ASSERTS_ENABLED) {
       Assert.that(getTagAt(i).isInvokeDynamic() || getTagAt(i).isDynamicConstant(), "Corrupted constant pool");
     }
     int bsmSpec = extractLowShortFromInt(this.getIntAt(i));
+    return getBootstrapMethodAt(bsmSpec);
+/*
     U2Array operands = getOperands();
     if (operands == null)  return null;  // safety first
     int basePos = VM.getVM().buildIntFromShorts(operands.at(bsmSpec * 2 + 0),
@@ -482,6 +517,7 @@ public class ConstantPool extends Metadata implements ClassConstants {
         values[j] = operands.at(basePos+j);
     }
     return values;
+*/
   }
 
   private static final String[] nameForTag = new String[] {
@@ -756,4 +792,14 @@ public class ConstantPool extends Metadata implements ClassConstants {
     // must stay in sync with ConstantPool::name_and_type_at_put, method_at_put, etc.
     return val & 0xFFFF;
   }
+
+  private int getOperandOffsetAt(int index) {
+    U2Array operands = getOperands();
+    if (Assert.ASSERTS_ENABLED) {
+      Assert.that(operands != null, "Operands is not present");
+    }
+    return VM.getVM().buildIntFromShorts(operands.at(index * 2),
+                                         operands.at(index * 2 + 1));
+  }
+
 }
