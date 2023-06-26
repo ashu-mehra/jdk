@@ -357,6 +357,7 @@ public class BasicTypeDataBase implements TypeDataBase {
       throw new RuntimeException("type of name \"" + type.getName() + "\" already present");
     }
 
+    System.out.println("Adding type " + type.getName() + " to types db");
     nameToTypeMap.put(type.getName(), type);
   }
 
