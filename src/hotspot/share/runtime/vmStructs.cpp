@@ -2127,6 +2127,7 @@
   declare_constant(ConstMethodFlags::_misc_has_parameter_annotations)     \
   declare_constant(ConstMethodFlags::_misc_has_default_annotations)       \
   declare_constant(ConstMethodFlags::_misc_has_type_annotations)          \
+  declare_constant(ConstMethodFlags::_misc_is_overpass)                   \
                                                                           \
   /**************/                                                        \
   /* DataLayout */                                                        \

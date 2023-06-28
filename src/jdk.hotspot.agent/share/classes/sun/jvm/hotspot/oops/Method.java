@@ -393,4 +393,8 @@ public class Method extends Metadata {
   public U1Array getAnnotationDefault() {
     return getConstMethod().getDefaultAnnotations();
   }
+
+  public boolean isOverpass() {
+    return getConstMethod().isOverpass();
+  }
 }

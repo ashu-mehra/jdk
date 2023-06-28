@@ -475,9 +475,8 @@ public class ClassWriter implements /* imports */ ClassConstants
         ArrayList<Method> valid_methods = new ArrayList<Method>();
         for (int i = 0; i < methods.length(); i++) {
             Method m = methods.at(i);
-            long accessFlags = m.getAccessFlags() & JVM_RECOGNIZED_METHOD_MODIFIERS;
             // skip overpass methods
-            if (accessFlags == (JVM_ACC_PUBLIC | JVM_ACC_SYNTHETIC | JVM_ACC_BRIDGE)) {
+            if (m.isOverpass()) {
                 continue;
             }
             valid_methods.add(m);

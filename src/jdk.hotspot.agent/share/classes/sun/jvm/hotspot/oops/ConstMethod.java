@@ -56,6 +56,7 @@ public class ConstMethod extends Metadata {
   private static int HAS_METHOD_PARAMETERS;
   private static int HAS_DEFAULT_ANNOTATIONS;
   private static int HAS_TYPE_ANNOTATIONS;
+  private static int IS_OVERPASS;
 
   private static final int sizeofShort = 2;
 
@@ -77,6 +78,7 @@ public class ConstMethod extends Metadata {
     HAS_METHOD_PARAMETERS     = db.lookupIntConstant("ConstMethodFlags::_misc_has_method_parameters").intValue();
     HAS_DEFAULT_ANNOTATIONS   = db.lookupIntConstant("ConstMethodFlags::_misc_has_default_annotations").intValue();
     HAS_TYPE_ANNOTATIONS      = db.lookupIntConstant("ConstMethodFlags::_misc_has_type_annotations").intValue();
+    IS_OVERPASS               = db.lookupIntConstant("ConstMethodFlags::_misc_is_overpass").intValue();
 
     // Size of Java bytecodes allocated immediately after ConstMethod*.
     codeSize                   = new CIntField(type.getCIntegerField("_code_size"), 0);
@@ -496,6 +498,10 @@ public class ConstMethod extends Metadata {
     } else {
       return null;
     }
+  }
+
+  public boolean isOverpass() {
+    return (getFlags() & IS_OVERPASS) != 0;
   }
 
   //---------------------------------------------------------------------------
