@@ -633,7 +633,7 @@ public class CommandProcessor {
                        case 1:
                            option = t.nextToken();
                            if (!option.equalsIgnoreCase("all") && !option.equalsIgnoreCase("app") &&
-                               !option.equalsIgnoreCase("root")) {
+                               !option.equalsIgnoreCase("boot")) {
                               prefix = option;
                               option = "all";
                            }
