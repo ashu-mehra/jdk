@@ -34,16 +34,24 @@ class elapsedTimer {
  private:
   jlong _counter;
   jlong _start_counter;
+  jlong _thread_counter;
+  jlong _start_thread_counter;
   bool  _active;
  public:
+  enum TimerType {
+    SYSTEM_TIMER,
+    THREAD_TIMER,
+  };
   elapsedTimer()             { _active = false; reset(); }
   void add(elapsedTimer t);
   void add_nanoseconds(jlong ns);
   void start();
   void stop();
-  void reset()               { _counter = 0; }
+  void reset()               { _counter = 0; _thread_counter = 0; }
   double seconds() const;
   jlong milliseconds() const;
+  double seconds_for_thread() const;
+  jlong milliseconds_for_thread() const;
   jlong ticks() const        { return _counter; }
   jlong active_ticks() const;
   bool  is_active() const { return _active; }

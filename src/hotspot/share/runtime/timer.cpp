@@ -50,6 +50,7 @@ jlong TimeHelper::micros_to_counter(jlong micros) {
 
 void elapsedTimer::add(elapsedTimer t) {
   _counter += t._counter;
+  _thread_counter += t._thread_counter;
 }
 
 void elapsedTimer::add_nanoseconds(jlong ns) {
@@ -61,22 +62,40 @@ void elapsedTimer::start() {
   if (!_active) {
     _active = true;
     _start_counter = os::elapsed_counter();
+    Thread* current = Thread::current_or_null();
+    if (current != nullptr) {
+      _start_thread_counter = os::thread_cpu_time(current);
+    } else {
+      _start_thread_counter = -1;
+    }
   }
 }
 
 void elapsedTimer::stop() {
   if (_active) {
     _counter += os::elapsed_counter() - _start_counter;
+    Thread* current = Thread::current_or_null();
+    if (current != nullptr && _start_thread_counter != -1) {
+      _thread_counter += os::thread_cpu_time(current) - _start_thread_counter;
+    }
     _active = false;
   }
 }
 
 double elapsedTimer::seconds() const {
- return TimeHelper::counter_to_seconds(_counter);
+  return TimeHelper::counter_to_seconds(_counter);
 }
 
 jlong elapsedTimer::milliseconds() const {
   return (jlong)TimeHelper::counter_to_millis(_counter);
+}
+
+double elapsedTimer::seconds_for_thread() const {
+  return TimeHelper::counter_to_seconds(_thread_counter);
+}
+
+jlong elapsedTimer::milliseconds_for_thread() const {
+  return (jlong)TimeHelper::counter_to_millis(_thread_counter);
 }
 
 jlong elapsedTimer::active_ticks() const {

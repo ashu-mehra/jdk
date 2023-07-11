@@ -4330,36 +4330,27 @@ void Compile::record_failure(const char* reason) {
 }
 
 Compile::TracePhase::TracePhase(const char* name, elapsedTimer* accumulator)
-  : TraceTime(name, accumulator, CITime, CITimeVerbose),
-    _phase_name(name), _dolog(CITimeVerbose)
+  : TraceTime(name, accumulator, false, CITimeVerbose),
+    _compile(Compile::current()),
+    _log(nullptr),
+    _phase_name(name)
 {
-  if (_dolog) {
-    C = Compile::current();
-    _log = C->log();
-  } else {
-    C = nullptr;
-    _log = nullptr;
-  }
+  assert(_compile != nullptr, "sanity check");
+  _log = _compile->log();
   if (_log != nullptr) {
-    _log->begin_head("phase name='%s' nodes='%d' live='%d'", _phase_name, C->unique(), C->live_nodes());
+    _log->begin_head("phase name='%s' nodes='%d' live='%d'", _phase_name, _compile->unique(), _compile->live_nodes());
     _log->stamp();
     _log->end_head();
   }
+  start_timer();
 }
 
 Compile::TracePhase::~TracePhase() {
-
-  C = Compile::current();
-  if (_dolog) {
-    _log = C->log();
-  } else {
-    _log = nullptr;
-  }
-
+  stop_timer();
 #ifdef ASSERT
   if (PrintIdealNodeCount) {
     tty->print_cr("phase name='%s' nodes='%d' live='%d' live_graph_walk='%d'",
-                  _phase_name, C->unique(), C->live_nodes(), C->count_live_nodes_by_graph_walk());
+                  _phase_name, _compile->unique(), _compile->live_nodes(), _compile->count_live_nodes_by_graph_walk());
   }
 
   if (VerifyIdealNodeCount) {
@@ -4368,7 +4359,8 @@ Compile::TracePhase::~TracePhase() {
 #endif
 
   if (_log != nullptr) {
-    _log->done("phase name='%s' nodes='%d' live='%d'", _phase_name, C->unique(), C->live_nodes());
+    _log->done("phase name='%s' nodes='%d' live='%d' timetaken='%ldmsecs'",
+               _phase_name, _compile->unique(), _compile->live_nodes(), get_timer().milliseconds_for_thread());
   }
 }
 

@@ -32,9 +32,9 @@ TraceTime::TraceTime(const char* title,
   _verbose  = true;
   _title    = title;
   _print    = nullptr;
+  _accum    = nullptr;
 
   if (_active) {
-    _accum = nullptr;
     _t.start();
   }
 }
@@ -47,9 +47,9 @@ TraceTime::TraceTime(const char* title,
   _verbose  = verbose;
   _title    = title;
   _print    = nullptr;
+  _accum    = accumulator;
 
   if (_active) {
-    _accum = accumulator;
     _t.start();
   }
 }
@@ -60,14 +60,25 @@ TraceTime::TraceTime(const char* title,
   _verbose  = true;
   _title    = title;
   _print    = ttlpf;
+  _accum    = nullptr;
 
   if (_active) {
-    _accum = nullptr;
     _t.start();
   }
 }
 
 TraceTime::~TraceTime() {
+  stop_timer();
+}
+
+void TraceTime::start_timer() {
+  if (!_active) {
+    _active = true;
+    _t.start();
+  }
+}
+
+void TraceTime::stop_timer() {
   if (!_active) {
     return;
   }
@@ -79,10 +90,14 @@ TraceTime::~TraceTime() {
     return;
   }
   if (_print) {
-    _print("%s, %3.7f secs", _title, _t.seconds());
+    _print("%s, elapsed=%3.7f secs", _title, _t.seconds());
   } else {
     tty->print_cr("[%s, %3.7f secs]", _title, _t.seconds());
     tty->flush();
   }
+  _active = false;
 }
 
+elapsedTimer TraceTime::get_timer() const {
+  return _t;
+}

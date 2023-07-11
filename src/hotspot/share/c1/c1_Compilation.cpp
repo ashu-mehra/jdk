@@ -82,23 +82,27 @@ class PhaseTraceTime: public TraceTime {
 
  public:
   PhaseTraceTime(TimerName timer)
-  : TraceTime("", &timers[timer], CITime || CITimeEach, Verbose),
-    _log(nullptr), _timer(timer)
+  : TraceTime(timer_name[timer], &timers[timer], CITime || CITimeEach, Verbose),
+    _log(nullptr),
+    _timer(timer)
   {
-    if (Compilation::current() != nullptr) {
-      _log = Compilation::current()->log();
-    }
-
+    assert(Compilation::current() != nullptr, "sanity check");
+    _log = Compilation::current()->log();
     if (_log != nullptr) {
       _log->begin_head("phase name='%s'", timer_name[_timer]);
       _log->stamp();
       _log->end_head();
     }
+    start_timer();
   }
 
   ~PhaseTraceTime() {
-    if (_log != nullptr)
-      _log->done("phase name='%s'", timer_name[_timer]);
+    stop_timer();
+
+    if (_log != nullptr) {
+      _log->done("phase name='%s' timetaken='%ldmsecs'",
+                 timer_name[_timer], get_timer().milliseconds_for_thread());
+    }
   }
 };
 
@@ -587,11 +591,11 @@ Compilation::Compilation(AbstractCompiler* compiler, ciEnv* env, ciMethod* metho
 , _cfg_printer_output(nullptr)
 #endif // PRODUCT
 {
-  PhaseTraceTime timeit(_t_compile);
   _arena = Thread::current()->resource_area();
   _env->set_compiler_data(this);
   _exception_info_list = new ExceptionInfoList();
   _implicit_exception_table.set_size(0);
+  PhaseTraceTime timeit(_t_compile);
 #ifndef PRODUCT
   if (PrintCFGToFile) {
     _cfg_printer_output = new CFGPrinterOutput(this);

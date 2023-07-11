@@ -224,10 +224,9 @@ class Compile : public Phase {
   // (The time collection itself is always conditionalized on CITime.)
   class TracePhase : public TraceTime {
    private:
-    Compile*    C;
+    Compile*    _compile;
     CompileLog* _log;
     const char* _phase_name;
-    bool _dolog;
    public:
     TracePhase(const char* name, elapsedTimer* accumulator);
     ~TracePhase();
