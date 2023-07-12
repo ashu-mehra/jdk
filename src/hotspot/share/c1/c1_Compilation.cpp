@@ -79,12 +79,14 @@ class PhaseTraceTime: public TraceTime {
  private:
   CompileLog* _log;
   TimerName _timer;
+  ThreadTimer _thread_timer;
 
  public:
   PhaseTraceTime(TimerName timer)
   : TraceTime(timer_name[timer], &timers[timer], CITime || CITimeEach, Verbose),
     _log(nullptr),
-    _timer(timer)
+    _timer(timer),
+    _thread_timer(CompilerThread::current())
   {
     assert(Compilation::current() != nullptr, "sanity check");
     _log = Compilation::current()->log();
@@ -92,16 +94,15 @@ class PhaseTraceTime: public TraceTime {
       _log->begin_head("phase name='%s'", timer_name[_timer]);
       _log->stamp();
       _log->end_head();
+      _thread_timer.start();
     }
-    start_timer();
   }
 
   ~PhaseTraceTime() {
-    stop_timer();
-
     if (_log != nullptr) {
-      _log->done("phase name='%s' timetaken='%ldmsecs'",
-                 timer_name[_timer], get_timer().milliseconds_for_thread());
+      _thread_timer.stop();
+      _log->done("phase name='%s' timetaken='%dmsecs'",
+                 timer_name[_timer], (int) _thread_timer.milliseconds());
     }
   }
 };

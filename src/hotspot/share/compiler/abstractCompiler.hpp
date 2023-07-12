@@ -43,7 +43,7 @@ class CompilerStatistics {
     int _count;          // number of compilations
     Data() : _bytes(0), _count(0) {}
     void update(elapsedTimer time, int bytes) {
-      _time.add(time);
+      _time.add(&time);
       _bytes += bytes;
       _count++;
     }

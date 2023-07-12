@@ -227,6 +227,7 @@ class Compile : public Phase {
     Compile*    _compile;
     CompileLog* _log;
     const char* _phase_name;
+    ThreadTimer _thread_timer;
    public:
     TracePhase(const char* name, elapsedTimer* accumulator);
     ~TracePhase();

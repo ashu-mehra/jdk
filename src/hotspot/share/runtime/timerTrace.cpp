@@ -84,13 +84,13 @@ void TraceTime::stop_timer() {
   }
   _t.stop();
   if (_accum != nullptr) {
-    _accum->add(_t);
+    _accum->add(&_t);
   }
   if (!_verbose) {
     return;
   }
   if (_print) {
-    _print("%s, elapsed=%3.7f secs", _title, _t.seconds());
+    _print("%s, %3.7f secs", _title, _t.seconds());
   } else {
     tty->print_cr("[%s, %3.7f secs]", _title, _t.seconds());
     tty->flush();
@@ -98,6 +98,3 @@ void TraceTime::stop_timer() {
   _active = false;
 }
 
-elapsedTimer TraceTime::get_timer() const {
-  return _t;
-}

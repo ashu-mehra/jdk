@@ -71,7 +71,6 @@ class TraceTime: public StackObj {
   // Use these when TraceTime cannot be used as scope-bound resource
   void start_timer();
   void stop_timer();
-  elapsedTimer get_timer() const;
 };
 
 

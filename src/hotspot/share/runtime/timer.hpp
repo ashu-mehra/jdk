@@ -29,32 +29,45 @@
 
 // Timers for simple measurement.
 
-class elapsedTimer {
-  friend class VMStructs;
- private:
+class BaseTimer {
+ protected:
   jlong _counter;
   jlong _start_counter;
-  jlong _thread_counter;
-  jlong _start_thread_counter;
   bool  _active;
+
+  virtual jlong read_counter() = 0;
+
  public:
-  enum TimerType {
-    SYSTEM_TIMER,
-    THREAD_TIMER,
-  };
-  elapsedTimer()             { _active = false; reset(); }
-  void add(elapsedTimer t);
+  BaseTimer() {
+    _active = false;
+    reset();
+  }
+  void add(BaseTimer* t);
   void add_nanoseconds(jlong ns);
-  void start();
-  void stop();
-  void reset()               { _counter = 0; _thread_counter = 0; }
+  virtual void start();
+  virtual void stop();
+  void reset()               { _counter = 0; }
   double seconds() const;
   jlong milliseconds() const;
-  double seconds_for_thread() const;
-  jlong milliseconds_for_thread() const;
   jlong ticks() const        { return _counter; }
   jlong active_ticks() const;
   bool  is_active() const { return _active; }
+};
+
+class elapsedTimer: public BaseTimer {
+  friend class VMStructs;
+ public:
+  jlong read_counter() override;
+};
+
+class ThreadTimer: public BaseTimer {
+ private:
+  Thread* _owner;
+ public:
+  ThreadTimer(Thread* thread) : _owner(thread) {}
+  void start() override;
+  void stop() override;
+  jlong read_counter() override;
 };
 
 // TimeStamp is used for recording when an event took place.
