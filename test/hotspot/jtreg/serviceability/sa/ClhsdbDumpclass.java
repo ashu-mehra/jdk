@@ -54,45 +54,14 @@ public class ClhsdbDumpclass {
         }
         System.out.println("Starting ClhsdbDumpclass test");
 
-        LingeredApp theApp = null;
+        LingeredAppForClassDump theApp = new LingeredAppForClassDump();
         try {
-            ClhsdbLauncher test = new ClhsdbLauncher();
+            LingeredApp.startApp(theApp);
+            System.out.println("Started LingeredAppForClassDump with pid " + theApp.getPid());
 
-            theApp = LingeredApp.startApp();
-            System.out.println("Started LingeredApp with pid " + theApp.getPid());
-
-            // Run "dumpclass jdk/test/lib/apps/LingeredApp"
-            String cmd = "dumpclass " + APP_DOT_CLASSNAME;
-            List<String> cmds = List.of(cmd);
-            Map<String, List<String>> unExpStrMap = new HashMap<>();
-            unExpStrMap.put(cmd, List.of("class not found"));
-            test.run(theApp.getPid(), cmds, null, unExpStrMap);
-            File classFile = new File(APP_SLASH_CLASSNAME + ".class");
-            if (!classFile.exists()) {
-                throw new RuntimeException("FAILED: Cannot find dumped .class file");
-            }
-
-            // Run javap on the generated class file to make sure it's valid.
-            JDKToolLauncher launcher = JDKToolLauncher.createUsingTestJDK("javap");
-            launcher.addVMArgs(Utils.getTestJavaOpts());
-            // Let javap print additional info, e.g., StackMapTable
-            launcher.addToolArg("-verbose");
-            launcher.addToolArg(classFile.toString());
-            System.out.println("> javap " + classFile.toString());
-            List<String> cmdStringList = Arrays.asList(launcher.getCommand());
-            ProcessBuilder pb = new ProcessBuilder(cmdStringList);
-            Process javap = pb.start();
-            OutputAnalyzer out = new OutputAnalyzer(javap);
-            javap.waitFor();
-            System.out.println(out.getStdout());
-            System.err.println(out.getStderr());
-            out.shouldHaveExitValue(0);
-            out.shouldMatch("public class " + APP_DOT_CLASSNAME);
-            // StackMapTable might not be generated for a class
-            // containing only methods with sequential control flows.
-            // But the class used here (LingeredApp) is not such a case.
-            out.shouldContain("StackMapTable:");
-            out.shouldNotContain("Error:");
+	    testLongDouble(theApp);
+	    testNestMates(theApp);
+	    testStackMapTable(theApp);
         } catch (SkippedException se) {
             throw se;
         } catch (Exception ex) {
@@ -100,6 +69,98 @@ public class ClhsdbDumpclass {
         } finally {
             LingeredApp.stopApp(theApp);
         }
-        System.out.println("Test PASSED");
     }
+
+    private static void dumpClasses(long appPid, List<String> classlist) throws Exception {
+	ClhsdbLauncher test = new ClhsdbLauncher();
+
+	for (String cls: classlist) {
+	    String cmd = "dumpclass " + cls;
+	    List<String> cmds = List.of(cmd);
+	    Map<String, List<String>> unExpStrMap = new HashMap<>();
+	    unExpStrMap.put(cmd, List.of("class not found"));
+	    test.run(appPid, cmds, null, unExpStrMap);
+	    File classFile = new File(cls + ".class");
+	    if (!classFile.exists()) {
+		throw new RuntimeException("FAILED: Cannot find dumped .class file");
+	    }
+	}
+    }
+
+    private static OutputAnalyzer runJavapOn(String cls) throws Exception {
+	// Run javap on the generated class file to make sure it's valid.
+	JDKToolLauncher launcher = JDKToolLauncher.createUsingTestJDK("javap");
+	launcher.addVMArgs(Utils.getTestJavaOpts());
+	launcher.addToolArg("-v");
+	launcher.addToolArg("-c");
+	launcher.addToolArg("-p");
+	launcher.addToolArg(cls + ".class");
+	System.out.println("> javap " + cls + ".class");
+	List<String> cmdStringList = Arrays.asList(launcher.getCommand());
+	ProcessBuilder pb = new ProcessBuilder(cmdStringList);
+	Process javap = pb.start();
+	OutputAnalyzer out = new OutputAnalyzer(javap);
+	javap.waitFor();
+	// do basic test here
+	out.shouldHaveExitValue(0);
+	out.shouldMatch("class " + cls.replaceAll("\\$", "\\\\\\$"));
+	return out;
+    }
+
+    public static void testLongDouble(LingeredApp app) throws Exception {
+        String classToDump = "ClassWithLongDouble";
+        var classlist = List.of(classToDump);
+
+	dumpClasses(app.getPid(), classlist);
+
+	// Run javap on the generated class file to make sure it's valid
+	// and do some sanity checks on the output
+	OutputAnalyzer out = runJavapOn(classToDump);
+	out.shouldContain("ConstantValue: long " + ClassWithLongDouble.LONG_VALUE + "l");
+	out.shouldContain("ConstantValue: double " + ClassWithLongDouble.DOUBLE_VALUE + "d");
+    }
+
+    public static void testNestMates(LingeredApp app) throws Exception {
+        String noNestMate = "NoNestMate";
+        String nestLvl1 = "NestLvl1";
+        String nestLvl2 = nestLvl1 + "$NestLvl2";
+        String nestLvl3 = nestLvl2 + "$NestLvl3";
+        var classlist = List.of(noNestMate, nestLvl1, nestLvl2, nestLvl3);
+
+        dumpClasses(app.getPid(), classlist);
+
+	// Run javap on the generated class file to make sure it's valid
+	// and do some sanity checks on the output
+	OutputAnalyzer out = runJavapOn(noNestMate);
+	out.shouldNotContain("NestMembers");
+	out.shouldNotContain("NestHost");
+
+	out = runJavapOn(nestLvl1);
+	// Match following pattern:
+	// NestMembers:
+	//     NestLvl2
+	//     NestLvl2$NestLvl3
+	out.shouldMatch("NestMembers:[\\s]+" + nestLvl2.replaceAll("\\$", "\\\\\\$") + "[\\s]+" + nestLvl3.replaceAll("\\$", "\\\\\\$"));
+
+	out = runJavapOn(nestLvl2);
+	out.shouldNotContain("NestMembers");
+	out.shouldContain("NestHost: class " + nestLvl1);
+
+	out = runJavapOn(nestLvl3);
+	out.shouldNotContain("NestMembers");
+	out.shouldContain("NestHost: class " + nestLvl1);
+    }
+
+    public static void testStackMapTable(LingeredApp app) throws Exception {
+        String classToDump = app.getClass().getName();
+        var classlist = List.of(classToDump);
+
+	dumpClasses(app.getPid(), classlist);
+
+	// Run javap on the generated class file to make sure it's valid
+	// and do some sanity checks on the output
+	OutputAnalyzer out = runJavapOn(classToDump);
+	out.shouldContain("StackMapTable:");
+    }
+
 }

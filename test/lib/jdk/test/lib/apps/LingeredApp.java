@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -93,6 +94,7 @@ public class LingeredApp {
     private Thread errPumperThread;
     private boolean finishAppCalled = false;
     private boolean useDefaultClasspath = true;
+    private String[] appArgs;
 
     protected Process appProcess;
     protected OutputBuffer output;
@@ -120,6 +122,10 @@ public class LingeredApp {
 
     public void setForceCrash(boolean forceCrash) {
         this.forceCrash = forceCrash;
+    }
+
+    public void setAppArgs(String[] appArgs) {
+        this.appArgs = appArgs;
     }
 
     native private static int crash();
@@ -357,13 +363,16 @@ public class LingeredApp {
      */
     public void runAppExactJvmOpts(String[] vmOpts)
             throws IOException {
-
         List<String> cmd = runAppPrepare(vmOpts);
 
         runAddAppName(cmd);
         cmd.add(lockFileName);
         if (forceCrash) {
             cmd.add("forceCrash"); // Let the subprocess know to force a crash
+        }
+
+        if (appArgs != null) {
+            cmd.addAll(Arrays.asList(appArgs));
         }
 
         printCommandLine(cmd);
@@ -589,8 +598,8 @@ public class LingeredApp {
 
 
     /**
-     * This part is the application itself. First arg is optional "forceCrash".
-     * Following arg is the lock file name.
+     * This part is the application itself. First arg is the lock file name.
+     * Following arg is the optional "forceCrash". Any additional arguments are ignored.
      */
     public static void main(String args[]) {
         boolean forceCrash = false;
@@ -598,17 +607,11 @@ public class LingeredApp {
         if (args.length == 0) {
             System.err.println("Lock file name is not specified");
             System.exit(7);
-        } else if (args.length > 2) {
-            System.err.println("Too many arguments specified: "  + args.length);
-            System.exit(7);
         }
 
         if (args.length == 2) {
             if (args[1].equals("forceCrash")) {
                 forceCrash = true;
-            } else {
-                System.err.println("Invalid 1st argment: " + args[1]);
-                System.exit(7);
             }
         }
 
