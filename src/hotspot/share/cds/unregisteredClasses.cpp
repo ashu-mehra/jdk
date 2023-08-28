@@ -42,6 +42,37 @@
 // Load the class of the given name from the location given by path. The path is specified by
 // the "source:" in the class list file (see classListParser.cpp), and can be a directory or
 // a JAR file.
+
+InstanceKlass* UnregisteredClasses::load_class_v1(Symbol* name, int cld_id, const char* path, TRAPS) {
+  assert(name != nullptr, "invariant");
+  assert(DumpSharedSpaces, "this function is only used with -Xshare:dump");
+  log_info(cds)("load_class_v1> name: %s, path: %s", name->as_C_string(), path);
+
+  {
+    PerfClassTraceTime vmtimer(ClassLoader::perf_sys_class_lookup_time(),
+                               THREAD->get_thread_stat()->perf_timers_addr(),
+                               PerfClassTraceTime::CLASS_LOAD);
+  }
+
+  Handle path_string = java_lang_String::create_from_str(path, CHECK_NULL);
+  Handle ext_class_name = java_lang_String::externalize_classname(name, CHECK_NULL);
+
+  JavaValue result(T_OBJECT);
+  JavaCallArguments args(3);
+  args.push_oop(ext_class_name);
+  args.push_int(cld_id);
+  args.push_oop(path_string);
+  JavaCalls::call_static(&result,
+                         vmClasses::jdk_internal_misc_CDS_klass(),
+                         vmSymbols::loadUnregisteredClass(),
+                         vmSymbols::loadUnregisteredClass_signature(),
+                         &args,
+                         CHECK_NULL);
+  assert(result.get_type() == T_OBJECT, "just checking");
+  oop obj = result.get_oop();
+  return InstanceKlass::cast(java_lang_Class::as_Klass(obj));
+}
+
 InstanceKlass* UnregisteredClasses::load_class(Symbol* name, const char* path, TRAPS) {
   assert(name != nullptr, "invariant");
   assert(DumpSharedSpaces, "this function is only used with -Xshare:dump");

@@ -34,13 +34,17 @@ class ClassFileStream;
 class ClassListWriter {
 #if INCLUDE_CDS
   class IDTable;
+  class ClassLoaderIDTable;
   static fileStream* _classlist_file;
   static IDTable* _id_table;
+  static ClassLoaderIDTable* _cld_id_table;
   static int _total_ids;
+  static int _total_cld_ids;
   MutexLocker _locker;
 
   static int get_id(const InstanceKlass* k);
   static bool has_id(const InstanceKlass* k);
+  static int get_cld_id(const ClassLoaderData* cld);
   static void assert_locked() { assert_lock_strong(ClassListFile_lock); }
 public:
   ClassListWriter() : _locker(Thread::current(), ClassListFile_lock, Mutex::_no_safepoint_check_flag) {}

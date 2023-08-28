@@ -788,6 +788,8 @@ class SerializeClosure;
   template(toFileURL_signature,                             "(Ljava/lang/String;)Ljava/net/URL;")                 \
   template(url_void_signature,                              "(Ljava/net/URL;)V")                                  \
   template(url_array_classloader_void_signature,            "([Ljava/net/URL;Ljava/lang/ClassLoader;)V")          \
+  template(loadUnregisteredClass,                           "loadUnregisteredClass")                              \
+  template(loadUnregisteredClass_signature,                 "(Ljava/lang/String;ILjava/lang/String;)Ljava/lang/Class;") \
                                                                                                                   \
   /* Thread.dump_to_file jcmd */                                                                                  \
   template(jdk_internal_vm_ThreadDumper,           "jdk/internal/vm/ThreadDumper")                                \

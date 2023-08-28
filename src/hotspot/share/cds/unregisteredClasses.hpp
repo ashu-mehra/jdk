@@ -30,6 +30,7 @@
 class UnregisteredClasses: AllStatic {
 public:
   static InstanceKlass* load_class(Symbol* h_name, const char* path, TRAPS);
+  static InstanceKlass* load_class_v1(Symbol* h_name, int cld_id, const char* path, TRAPS);
 
 private:
   static Handle create_url_classloader(Symbol* path, TRAPS);

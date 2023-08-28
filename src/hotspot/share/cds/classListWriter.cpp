@@ -69,8 +69,16 @@ class ClassListWriter::IDTable : public ResourceHashtable<
   15889, // prime number
   AnyObj::C_HEAP> {};
 
+class ClassListWriter::ClassLoaderIDTable : public ResourceHashtable<
+  const ClassLoaderData*, int,
+  137,
+  AnyObj::C_HEAP> {};
+
 ClassListWriter::IDTable* ClassListWriter::_id_table = nullptr;
+ClassListWriter::ClassLoaderIDTable* ClassListWriter::_cld_id_table = nullptr;
+
 int ClassListWriter::_total_ids = 0;
+int ClassListWriter::_total_cld_ids = 0;
 
 int ClassListWriter::get_id(const InstanceKlass* k) {
   assert_locked();
@@ -92,6 +100,19 @@ bool ClassListWriter::has_id(const InstanceKlass* k) {
   } else {
     return false;
   }
+}
+
+int ClassListWriter::get_cld_id(const ClassLoaderData* cld) {
+  assert_locked();
+  if (_cld_id_table == nullptr) {
+    _cld_id_table = new (mtClass)ClassLoaderIDTable();
+  }
+  bool created;
+  int* v = _cld_id_table->put_if_absent(cld, &created);
+  if (created) {
+    *v = _total_cld_ids++;
+  }
+  return *v;
 }
 
 void ClassListWriter::handle_class_unloading(const InstanceKlass* klass) {
@@ -171,6 +192,7 @@ void ClassListWriter::write_to_stream(const InstanceKlass* k, outputStream* stre
       }
     }
 
+    stream->print(" classloader: %d", get_cld_id(k->class_loader_data()));
 #ifdef _WINDOWS
     // "file:/C:/dir/foo.jar" -> "C:/dir/foo.jar"
     stream->print(" source: %s", cfs->source() + 6);

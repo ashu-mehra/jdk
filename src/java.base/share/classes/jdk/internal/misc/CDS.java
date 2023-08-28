@@ -31,8 +31,13 @@ import java.io.InputStreamReader;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +49,7 @@ public class CDS {
     private static final boolean isDumpingClassList;
     private static final boolean isDumpingArchive;
     private static final boolean isSharingEnabled;
+
     static {
         isDumpingClassList = isDumpingClassList0();
         isDumpingArchive = isDumpingArchive0();
@@ -332,5 +338,37 @@ public class CDS {
         String archiveFilePath = new File(archiveFileName).getAbsolutePath();
         System.out.println("The process was attached by jcmd and dumped a " + (isStatic ? "static" : "dynamic") + " archive " + archiveFilePath);
         return archiveFilePath;
+    }
+
+    static class UnregisteredClassLoader extends URLClassLoader {
+        public UnregisteredClassLoader(URL url) {
+            super(new URL[] { url });
+        }
+	public void addURL(URL url) {
+	    super.addURL(url);
+	}
+    }
+
+    private static final Map<Integer, UnregisteredClassLoader> classLoaderTable = new HashMap<>();
+
+    private static Class<?> loadUnregisteredClass(String className, int classLoaderId, String path)
+        throws ClassNotFoundException
+    {
+        URL url = null;
+        try {
+            url = Path.of(path).toUri().toURL();
+        } catch (InvalidPathException | IOException ignore) {
+            return null;
+        }
+        //System.out.println("loadUnregisteredClass> url: " + url);
+        UnregisteredClassLoader loader = classLoaderTable.get(classLoaderId);
+        if (loader == null) {
+            loader = new UnregisteredClassLoader(url);
+            classLoaderTable.put(classLoaderId, loader);
+        } else {
+            loader.addURL(url);
+        }
+        Class<?> cls = loader.loadClass(className);
+        return cls;
     }
 }

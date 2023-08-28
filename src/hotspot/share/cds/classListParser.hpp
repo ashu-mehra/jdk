@@ -112,6 +112,7 @@ private:
   int                 _super;
   GrowableArray<int>* _interfaces;
   bool                _interfaces_specified;
+  int                 _classloader;
   const char*         _source;
   bool                _lambda_form_line;
   ParseMode           _parse_mode;
