@@ -198,7 +198,7 @@ private:
 
 public:
   VSharedData() :
-    _arena(mtCompiler),
+    _arena(mtCompiler, Arena::Tag::tag_vector),
     _node_idx_to_loop_body_idx(&_arena, estimated_node_count(), 0, 0)
   {
   }
@@ -638,7 +638,7 @@ private:
 public:
   VLoopAnalyzer(const VLoop& vloop, VSharedData& vshared) :
     _vloop(vloop),
-    _arena(mtCompiler),
+    _arena(mtCompiler, Arena::Tag::tag_vector),
     _success(false),
     _reductions      (&_arena, vloop),
     _memory_slices   (&_arena, vloop),

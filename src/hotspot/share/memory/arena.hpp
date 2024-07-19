@@ -88,6 +88,11 @@ public:
   template(ra, RA, Resource areas) \
   template(ha, HA, Handle area) \
   template(node, NA, Node arena) \
+  template(ci, CI, CI arena) \
+  template(c2_comp, C2Comp, C2 Compilation arena) \
+  template(c2_type, C2Type, C2 Type arena) \
+  template(c2_sw, C2SW, C2 Superword arena) \
+  template(vector, Vector, C2 Vectorization arena)
 
 // Fast allocation of memory
 class Arena : public CHeapObjBase {
