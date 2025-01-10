@@ -466,12 +466,12 @@ class SharedRuntime: AllStatic {
   // pointer as needed. This means the i2c adapter code doesn't need any special
   // handshaking path with compiled code to keep the stack walking correct.
 
-  static AdapterHandlerEntry* generate_i2c2i_adapters(MacroAssembler *_masm,
-                                                      int total_args_passed,
-                                                      int max_arg,
-                                                      const BasicType *sig_bt,
-                                                      const VMRegPair *regs,
-                                                      AdapterFingerPrint* fingerprint);
+  static void generate_i2c2i_adapters(MacroAssembler *_masm,
+                                      int total_args_passed,
+                                      int max_arg,
+                                      const BasicType *sig_bt,
+                                      const VMRegPair *regs,
+                                      AdapterFingerPrint* fingerprint);
 
   static void gen_i2c_adapter(MacroAssembler *_masm,
                               int total_args_passed,
@@ -668,7 +668,7 @@ class SharedRuntime: AllStatic {
 // used by the adapters.  The code generation happens here because it's very
 // similar to what the adapters have to do.
 
-class AdapterHandlerEntry : public CHeapObj<mtCode> {
+class AdapterHandlerEntry : public MetaspaceObj {
   friend class AdapterHandlerLibrary;
 
  private:
@@ -677,6 +677,7 @@ class AdapterHandlerEntry : public CHeapObj<mtCode> {
   address _c2i_entry;
   address _c2i_unverified_entry;
   address _c2i_no_clinit_check_entry;
+  bool    _linked;
 
 #ifdef ASSERT
   // Captures code and signature used to generate this adapter when
@@ -692,7 +693,8 @@ class AdapterHandlerEntry : public CHeapObj<mtCode> {
     _i2c_entry(i2c_entry),
     _c2i_entry(c2i_entry),
     _c2i_unverified_entry(c2i_unverified_entry),
-    _c2i_no_clinit_check_entry(c2i_no_clinit_check_entry)
+    _c2i_no_clinit_check_entry(c2i_no_clinit_check_entry),
+    _linked(false),
 #ifdef ASSERT
     , _saved_code_length(0)
 #endif
@@ -701,11 +703,33 @@ class AdapterHandlerEntry : public CHeapObj<mtCode> {
   ~AdapterHandlerEntry();
 
  public:
+  static AdapterHandlerEntry* allocate(AdapterFingerPrint* fingerprint,
+                                       address i2c_entry,
+                                       address c2i_entry,
+                                       address c2i_unverified_entry,
+                                       address c2i_no_clinit_check_entry)
+  {
+    return new (mtCode) AdapterHandlerEntry(fingerprint, i2c_entry, c2i_entry, c2i_unverified_entry, c2i_no_clinit_check_entry);
+  }
+
+  static void deallocate(AdapterHandlerEntry *handler) {
+    handler->~AdapterHandlerEntry();
+  }
+
+  void set_entry_points(address i2c_entry, address c2i_entry, address c2i_unverified_entry, address c2i_no_clinit_check_entry, bool linked = true) {
+    _i2c_entry = i2c_entry;
+    _c2i_entry = c2i_entry;
+    _c2i_unverified_entry = c2i_unverified_entry;
+    _c2i_no_clinit_check_entry = c2i_no_clinit_check_entry;
+    _linked = linked;
+  }
+
   address get_i2c_entry()                  const { return _i2c_entry; }
   address get_c2i_entry()                  const { return _c2i_entry; }
   address get_c2i_unverified_entry()       const { return _c2i_unverified_entry; }
   address get_c2i_no_clinit_check_entry()  const { return _c2i_no_clinit_check_entry; }
 
+  bool is_linked() const { return _linked; }
   address base_address();
   void relocate(address new_base);
 
@@ -719,7 +743,18 @@ class AdapterHandlerEntry : public CHeapObj<mtCode> {
 
   //virtual void print_on(outputStream* st) const;  DO NOT USE
   void print_adapter_on(outputStream* st) const;
+
+  void metaspace_pointers_do(MetaspaceClosure* it);
+  int size() const {return (int)heap_word_size(sizeof(AdapterHandlerEntry)); }
+  MetaspaceObj::Type type() const { return AdapterHandlerEntryType; }
+
+  void remove_unshareable_info() NOT_CDS_RETURN;
+  void restore_unshareable_info(TRAPS) NOT_CDS_RETURN;
 };
+
+#if INCLUDE_CDS
+class ArchivedAdapterTable;
+#endif // INCLUDE_CDS
 
 class AdapterHandlerLibrary: public AllStatic {
   friend class SharedRuntime;
@@ -731,23 +766,40 @@ class AdapterHandlerLibrary: public AllStatic {
   static AdapterHandlerEntry* _obj_arg_handler;
   static AdapterHandlerEntry* _obj_int_arg_handler;
   static AdapterHandlerEntry* _obj_obj_arg_handler;
+#if INCLUDE_CDS
+  static ArchivedAdapterTable _archived_adapter_handler_table;
+#endif // INCLUDE_CDS
 
   static BufferBlob* buffer_blob();
   static void initialize();
+  static AdapterHandlerEntry* create_simple_adapter(AdapterBlob*& new_adapter,
+                                                    int total_args_passed,
+                                                    BasicType* sig_bt);
+  static AdapterHandlerEntry* get_simple_adapter(const methodHandle& method);
+  static bool lookup_aot_cache(AdapterHandlerEntry* handler, CodeBuffer* buffer);
   static AdapterHandlerEntry* create_adapter(AdapterBlob*& new_adapter,
+                                             AdapterFingerPrint* fingerprint,
                                              int total_args_passed,
                                              BasicType* sig_bt,
                                              bool allocate_code_blob);
-  static AdapterHandlerEntry* get_simple_adapter(const methodHandle& method);
+#ifndef PRODUCT
+  static void print_adapter_handler_info(AdapterHandlerEntry* handler, AdapterBlob* adapter_blob);
+#endif // PRODUCT
  public:
 
   static AdapterHandlerEntry* new_entry(AdapterFingerPrint* fingerprint,
-                                        address i2c_entry,
-                                        address c2i_entry,
-                                        address c2i_unverified_entry,
+                                        address i2c_entry = nullptr,
+                                        address c2i_entry = nullptr,
+                                        address c2i_unverified_entry = nullptr,
                                         address c2i_no_clinit_check_entry = nullptr);
   static void create_native_wrapper(const methodHandle& method);
   static AdapterHandlerEntry* get_adapter(const methodHandle& method);
+  static AdapterHandlerEntry* lookup(AdapterFingerPrint* fp);
+  static bool generate_adapter_code(AdapterBlob*& adapter_blob,
+                                    AdapterHandlerEntry* handler,
+                                    int total_args_passed,
+                                    BasicType* sig_bt,
+                                    bool is_transient);
 
   static void print_handler(const CodeBlob* b) { print_handler_on(tty, b); }
   static void print_handler_on(outputStream* st, const CodeBlob* b);
@@ -756,6 +808,11 @@ class AdapterHandlerLibrary: public AllStatic {
   static void print_statistics();
 #endif // PRODUCT
 
+  static bool is_abstract_method_adapter(AdapterHandlerEntry* adapter);
+
+  static size_t estimate_size_for_archive() NOT_CDS_RETURN_(0);
+  static void archive_adapter_table() NOT_CDS_RETURN;
+  static void serialize_shared_table_header(SerializeClosure* soc) NOT_CDS_RETURN;
 };
 
 #endif // SHARE_RUNTIME_SHAREDRUNTIME_HPP
