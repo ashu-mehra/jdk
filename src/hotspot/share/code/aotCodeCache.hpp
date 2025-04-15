@@ -47,8 +47,12 @@ class AOTCodeEntry {
 public:
   enum Kind {
     None    = 0,
+    First_kind = 1,
     Adapter = 1,
-    Blob    = 2
+    SharedBlob = 2,
+    C1Blob = 3,
+    C2Blob = 4,
+    Last_kind = 4
   };
 
 private:
@@ -102,34 +106,49 @@ public:
   bool has_oop_maps() const { return _has_oop_maps; }
   address dumptime_content_start_addr() const { return _dumptime_content_start_addr; }
 
-  static bool is_valid_entry_kind(Kind kind) { return kind == Adapter || kind == Blob; }
+  static bool is_valid_entry_kind(Kind kind) { return kind >= First_kind && kind <= Last_kind; }
+  static bool is_blob(Kind kind) { return kind == SharedBlob || kind == C1Blob || kind == C2Blob; }
+  static bool is_adapter(Kind kind) { return kind == Adapter; }
 };
 
 // Addresses of stubs, blobs and runtime finctions called from compiled code.
 class AOTCodeAddressTable : public CHeapObj<mtCode> {
 private:
   address* _extrs_addr;
-  address* _blobs_addr;
+  address* _stubs_addr;
+  address* _shared_blobs_addr;
+  address* _C1_blobs_addr;
   uint     _extrs_length;
-  uint     _blobs_length;
+  uint     _stubs_length;
+  uint     _shared_blobs_length;
+  uint     _C1_blobs_length;
 
   bool _extrs_complete;
+  bool _early_stubs_complete;
   bool _shared_blobs_complete;
+  bool _early_c1_complete;
   bool _complete;
 
 public:
   AOTCodeAddressTable() :
     _extrs_addr(nullptr),
-    _blobs_addr(nullptr),
+    _shared_blobs_addr(nullptr),
+    _C1_blobs_addr(nullptr),
     _extrs_length(0),
-    _blobs_length(0),
+    _stubs_length(0),
+    _shared_blobs_length(0),
+    _C1_blobs_length(0),
     _extrs_complete(false),
+    _early_stubs_complete(false),
     _shared_blobs_complete(false),
+    _early_c1_complete(false),
     _complete(false)
   { }
   ~AOTCodeAddressTable();
   void init_extrs();
+  void init_early_stubs();
   void init_shared_blobs();
+  void init_early_c1();
   void add_C_string(const char* str);
   int  id_for_C_string(address str);
   address address_for_C_string(int idx);
@@ -272,7 +291,9 @@ public:
   int store_strings();
 
   static void init_extrs_table() NOT_CDS_RETURN;
+  static void init_early_stubs_table() NOT_CDS_RETURN;
   static void init_shared_blobs_table() NOT_CDS_RETURN;
+  static void init_early_c1_table() NOT_CDS_RETURN;
 
   address address_for_id(int id) const { return _table->address_for_id(id); }
 
@@ -298,8 +319,16 @@ public:
   bool write_relocations(CodeBlob& code_blob);
   bool write_oop_map_set(CodeBlob& cb);
 
-  static bool store_code_blob(CodeBlob& blob, AOTCodeEntry::Kind entry_kind, uint id, const char* name, int entry_offset_count, int* entry_offsets) NOT_CDS_RETURN_(false);
-  static CodeBlob* load_code_blob(AOTCodeEntry::Kind kind, uint id, const char* name, int entry_offset_count, int* entry_offsets) NOT_CDS_RETURN_(nullptr);
+  static bool store_code_blob(CodeBlob& blob,
+                              AOTCodeEntry::Kind entry_kind,
+                              uint id, const char* name,
+                              int entry_offset_count = 0,
+                              int* entry_offsets = nullptr) NOT_CDS_RETURN_(false);
+
+  static CodeBlob* load_code_blob(AOTCodeEntry::Kind kind,
+                                  uint id, const char* name,
+                                  int entry_offset_count = 0,
+                                  int* entry_offsets = nullptr) NOT_CDS_RETURN_(nullptr);
 
   static uint store_entries_cnt() {
     if (is_on_for_write()) {
