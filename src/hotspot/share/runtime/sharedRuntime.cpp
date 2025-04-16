@@ -2954,29 +2954,32 @@ AdapterBlob* AdapterHandlerLibrary::link_aot_adapter_handler(AdapterHandlerEntry
 // to their code in AOT Code Cache
 void AdapterHandlerEntry::link() {
   AdapterBlob* adapter_blob = nullptr;
-  ResourceMark rm;
-  assert(_fingerprint != nullptr, "_fingerprint must not be null");
-  bool generate_code = false;
-  // Generate code only if AOTCodeCache is not available, or
-  // caching adapters is disabled, or we fail to link
-  // the AdapterHandlerEntry to its code in the AOTCodeCache
-  if (AOTCodeCache::is_using_adapters()) {
-    adapter_blob = AdapterHandlerLibrary::link_aot_adapter_handler(this);
-    if (adapter_blob == nullptr) {
-      log_warning(cds)("Failed to link AdapterHandlerEntry (fp=%s) to its code in the AOT code cache", _fingerprint->as_basic_args_string());
+  {
+    MutexLocker mu(AdapterHandlerLibrary_lock);
+    ResourceMark rm;
+    assert(_fingerprint != nullptr, "_fingerprint must not be null");
+    bool generate_code = false;
+    // Generate code only if AOTCodeCache is not available, or
+    // caching adapters is disabled, or we fail to link
+    // the AdapterHandlerEntry to its code in the AOTCodeCache
+    if (AOTCodeCache::is_using_adapters()) {
+      adapter_blob = AdapterHandlerLibrary::link_aot_adapter_handler(this);
+      if (adapter_blob == nullptr) {
+	log_warning(cds)("Failed to link AdapterHandlerEntry (fp=%s) to its code in the AOT code cache", _fingerprint->as_basic_args_string());
+	generate_code = true;
+      }
+    } else {
       generate_code = true;
     }
-  } else {
-    generate_code = true;
-  }
-  if (generate_code) {
-    int nargs;
-    BasicType* bt = _fingerprint->as_basic_type(nargs);
-    if (!AdapterHandlerLibrary::generate_adapter_code(adapter_blob, this, nargs, bt, /* is_transient */ false)) {
-      // Don't throw exceptions during VM initialization because java.lang.* classes
-      // might not have been initialized, causing problems when constructing the
-      // Java exception object.
-      vm_exit_during_initialization("Out of space in CodeCache for adapters");
+    if (generate_code) {
+      int nargs;
+      BasicType* bt = _fingerprint->as_basic_type(nargs);
+      if (!AdapterHandlerLibrary::generate_adapter_code(adapter_blob, this, nargs, bt, /* is_transient */ false)) {
+	// Don't throw exceptions during VM initialization because java.lang.* classes
+	// might not have been initialized, causing problems when constructing the
+	// Java exception object.
+	vm_exit_during_initialization("Out of space in CodeCache for adapters");
+      }
     }
   }
   // Outside of the lock
@@ -2987,6 +2990,7 @@ void AdapterHandlerEntry::link() {
 }
 
 void AdapterHandlerLibrary::link_aot_adapters() {
+  PerfTraceTime timer(ClassLoader::perf_method_adapters_time());
   _aot_adapter_handler_table.iterate([](AdapterHandlerEntry* entry) {
     assert(!entry->is_linked(), "AdapterHandlerEntry is already linked!");
     entry->link();
