@@ -107,9 +107,9 @@ public class AOTCodeCompressedOopsTest {
         List<String> getVMArgsForHeapConfig(boolean isBaseZero, boolean isShiftZero) {
             List<String> list = new ArrayList<String>();
             if (isBaseZero && isShiftZero) {
-                list.add("-Xmx1g"); // Set max heap < 4G
+                list.add("-Xmx128m"); // Set max heap < 4G
             } else if (isBaseZero && !isShiftZero) {
-                list.add("-Xmx31g"); // Set max heap > 4G
+                list.add("-Xmx6g"); // Set max heap > 4G
             } else if (!isBaseZero && !isShiftZero) {
                 list.add("-Xmx31g");
                 list.add("-XX:HeapBaseMinAddress=32g");

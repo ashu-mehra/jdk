@@ -287,8 +287,6 @@ ExceptionBlob* OptoRuntime::generate_exception_blob() {
     return nullptr;
   }
   MacroAssembler* masm = new MacroAssembler(&buffer);
-
-
   address start = __ pc();
 
   // Exception pc is 'return address' for stack walker
