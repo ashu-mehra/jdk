@@ -45,6 +45,7 @@ class outputStream;
 enum class vmIntrinsicID;
 
 // Abstract_VM_Version provides information about the VM.
+// Each arch implements its own VM_Version class that extends Abstract_VM_Version.
 
 class Abstract_VM_Version: AllStatic {
   friend class VMStructs;
