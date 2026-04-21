@@ -195,6 +195,9 @@ void StubGenerator::generate_string_indexof(address *fnptrs) {
   assert(fnptrs[StrIntrinsicNode::LL] != nullptr, "LL not generated.");
   assert(fnptrs[StrIntrinsicNode::UL] != nullptr, "UL not generated.");
   assert(fnptrs[StrIntrinsicNode::UU] != nullptr, "UU not generated.");
+  StubRoutines::x86::_string_indexof_linear_ll = fnptrs[StrIntrinsicNode::LL];
+  StubRoutines::x86::_string_indexof_linear_uu = fnptrs[StrIntrinsicNode::UU];
+  StubRoutines::x86::_string_indexof_linear_ul = fnptrs[StrIntrinsicNode::UL];
 }
 
 static void generate_string_indexof_stubs(StubGenerator *stubgen, address *fnptrs,
@@ -206,7 +209,18 @@ static void generate_string_indexof_stubs(StubGenerator *stubgen, address *fnptr
   assert(isLL || isUL || isUU, "Encoding not recognized");
 
   StubId stub_id = (isLL ?  StubId::stubgen_string_indexof_linear_ll_id : (isUL ? StubId::stubgen_string_indexof_linear_ul_id : StubId::stubgen_string_indexof_linear_uu_id));
+
+  int entry_count = StubInfo::entry_count(stub_id);
+  assert(entry_count == 1, "sanity check, expected %d found %d", 1, entry_count);
+  address start = stubgen->load_archive_data(stub_id);
+  if (start != nullptr) {
+    fnptrs[ae] = start;
+    return;
+  }
+
+  __ align(CodeEntryAlignment);
   StubCodeMark mark(stubgen, stub_id);
+  start = __ pc();
   // Keep track of isUL since we need to generate UU code in the main body
   // for the case where we expand the needle from bytes to words on the stack.
   // This is done at L_wcharBegin.  The algorithm used is:
@@ -264,7 +278,6 @@ static void generate_string_indexof_stubs(StubGenerator *stubgen, address *fnptr
   Label L_nextCheck, L_checksPassed, L_return;
   Label L_wcharBegin, L_continue, L_wideNoExpand, L_returnR11;
 
-  __ align(CodeEntryAlignment);
   fnptrs[ae] = __ pc();
   __ enter();  // required for proper stackwalking of RuntimeStub frame
 
@@ -941,6 +954,9 @@ static void generate_string_indexof_stubs(StubGenerator *stubgen, address *fnptr
       __ jmp(L_returnR11);
     }
   }
+
+  // record the stub entry and end
+  stubgen->store_archive_data(stub_id, start, __ pc());
 
   return;
 }
