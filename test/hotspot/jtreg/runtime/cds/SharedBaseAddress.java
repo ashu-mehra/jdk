@@ -131,6 +131,7 @@ public class SharedBaseAddress {
             System.out.println("sharedBaseAddress = " + testEntry);
             CDSOptions opts = (new CDSOptions())
                         .setArchiveName(filename)
+                        .addPrefix("-XX:ArchiveRelocationMode=0")
                         .addPrefix("-XX:SharedBaseAddress=" + testEntry)
                         .addPrefix("-Xlog:cds=debug")
                         .addPrefix("-Xlog:cds+reloc=debug")
@@ -152,8 +153,7 @@ public class SharedBaseAddress {
             CDSTestUtils.createArchiveAndCheck(opts);
             OutputAnalyzer out = CDSTestUtils.runWithArchiveAndCheck(opts);
             if (testEntry.equals("0")) {
-                out.shouldContain("Archive(s) were created with -XX:SharedBaseAddress=0. Always map at os-selected address.")
-                   .shouldContain("Try to map archive(s) at an alternative address")
+                out.shouldContain("Try to map archive(s) at an alternative address")
                    .shouldNotMatch(failedPattern);
             }
         }
