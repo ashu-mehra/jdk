@@ -1906,7 +1906,7 @@ bool FileMapInfo::open_as_input() {
     return false;
   }
 
-  if (!open_for_read() || !init_from_file(_fd) || !validate_header()) {
+  if (!open_for_read() || !init_from_file(_fd)) {
     if (_is_static) {
       if (CDSConfig::new_aot_flags_used()) {
         AOTMetaspace::report_loading_error("Loading %s failed.", CDSConfig::type_of_archive_being_loaded());

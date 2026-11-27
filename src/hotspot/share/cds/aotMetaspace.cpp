@@ -1561,6 +1561,30 @@ void AOTMetaspace::writing_error(oop exception_oop) {
   }
 }
 
+MapArchiveResult AOTMetaspace::validate_aot_cache(FileMapInfo* mapinfo) {
+  MapArchiveResult result = MAP_ARCHIVE_SUCCESS;
+  if (mapinfo == nullptr) {
+    return result;
+  }
+  if (!mapinfo->validate_header()) {
+    return MAP_ARCHIVE_OTHER_FAILURE;
+  } else {
+    if (!mapinfo->validate_class_location()) {
+      return MAP_ARCHIVE_OTHER_FAILURE;
+    }
+    if (mapinfo->is_static()) {
+      // Currently, only static archive uses early serialized data.
+      char* buffer = mapinfo->early_serialized_data();
+      intptr_t* array = (intptr_t*)buffer;
+      ReadClosure rc(&array, (address)mapinfo->mapped_base());
+      early_serialize(&rc);
+    }
+    if (!mapinfo->validate_aot_class_linking()) {
+      return MAP_ARCHIVE_OTHER_FAILURE;
+    }
+  }
+  return result;
+}
 
 void AOTMetaspace::initialize_runtime_shared_and_meta_spaces() {
   assert(CDSConfig::is_using_archive(), "Must be called when UseSharedSpaces is enabled");
@@ -1568,6 +1592,7 @@ void AOTMetaspace::initialize_runtime_shared_and_meta_spaces() {
 
   FileMapInfo* static_mapinfo = get_static_archive(); // may have been opened by init_heap_settings()
   FileMapInfo* dynamic_mapinfo = nullptr;
+  ReservedSpace total_space_rs, archive_space_rs, class_space_rs;
 
   if (static_mapinfo != nullptr) {
     aot_log_info(aot)("Core region alignment: %zu", static_mapinfo->core_region_alignment());
@@ -1577,19 +1602,22 @@ void AOTMetaspace::initialize_runtime_shared_and_meta_spaces() {
 
     if (ArchiveRelocationMode == REQUESTED_ADDR_FALLBACK_OS_ADDR) {
       bool use_requested_addr = static_mapinfo->requested_base_address() != nullptr;
-      result = map_archives(static_mapinfo, dynamic_mapinfo, use_requested_addr);
+      result = map_archives(static_mapinfo, dynamic_mapinfo, use_requested_addr, total_space_rs, archive_space_rs, class_space_rs);
       if ((result == MAP_ARCHIVE_MMAP_FAILURE) && use_requested_addr) {
         // Mapping has failed (probably due to ASLR). Let's map at an address chosen
         // by the OS.
-        result = map_archives(static_mapinfo, dynamic_mapinfo, false);
+        unmap_archive(static_mapinfo);
+        unmap_archive(dynamic_mapinfo);
+        release_reserved_spaces(total_space_rs, archive_space_rs, class_space_rs);
+        result = map_archives(static_mapinfo, dynamic_mapinfo, false, total_space_rs, archive_space_rs, class_space_rs);
       }
     } else if (ArchiveRelocationMode == OS_ADDR_ONLY) {
       aot_log_info(aot)("ArchiveRelocationMode == 1: always map archive(s) at an alternative address");
-      result = map_archives(static_mapinfo, dynamic_mapinfo, false);
+      result = map_archives(static_mapinfo, dynamic_mapinfo, false, total_space_rs, archive_space_rs, class_space_rs);
     } else if (ArchiveRelocationMode == REQUESTED_ADDR_ONLY) {
       if (static_mapinfo->requested_base_address() != nullptr) {
         aot_log_info(aot)("ArchiveRelocationMode == 2: never map archive(s) at an alternative address");
-        result = map_archives(static_mapinfo, dynamic_mapinfo, true);
+        result = map_archives(static_mapinfo, dynamic_mapinfo, true, total_space_rs, archive_space_rs, class_space_rs);
       } else {
         report_loading_error("Cannot use ArchiveRelocationMode=2 when the archive was created with -XX:SharedBaseAddress=0");
       }
@@ -1597,6 +1625,40 @@ void AOTMetaspace::initialize_runtime_shared_and_meta_spaces() {
   }
 
   if (result == MAP_ARCHIVE_SUCCESS) {
+    result = validate_aot_cache(static_mapinfo);
+    if (result == MAP_ARCHIVE_SUCCESS && dynamic_mapinfo != nullptr && dynamic_mapinfo->is_mapped()) {
+      result = validate_aot_cache(dynamic_mapinfo);
+      if (result == MAP_ARCHIVE_OTHER_FAILURE) {
+        log_warning(cds, dynamic)("Unable to use shared archive. The top archive failed to load: %s",
+                                  dynamic_mapinfo->full_path());
+        unmap_archive(dynamic_mapinfo);
+        result = MAP_ARCHIVE_SUCCESS;
+      }
+    }
+  }
+
+  if (result == MAP_ARCHIVE_SUCCESS) {
+#if INCLUDE_CLASS_SPACE
+    if (static_mapinfo->can_use_heap_region()) {
+      if (static_mapinfo->object_streaming_mode()) {
+        AOTHeap::initialize_loading_mode(HeapArchiveMode::_streaming);
+      } else {
+        // map_or_load_heap_region() compares the current narrow oop and klass encodings
+        // with the archived ones, so it must be done after all encodings are determined.
+        static_mapinfo->map_or_load_heap_region();
+        AOTHeap::initialize_loading_mode(HeapArchiveMode::_mapping);
+      }
+    } else {
+      FileMapRegion* r = static_mapinfo->region_at(AOTMetaspace::hp);
+      if (r->used() > 0) {
+        AOTMetaspace::report_loading_error("Cannot use CDS heap data.");
+      }
+      if (!CDSConfig::is_dumping_static_archive()) {
+        CDSConfig::stop_using_full_module_graph("No CDS heap data");
+      }
+    }
+#endif // INCLUDE_CLASS_SPACE
+    log_info(aot)("initial full module graph: %s", CDSConfig::is_using_full_module_graph() ? "enabled" : "disabled");
     bool dynamic_mapped = (dynamic_mapinfo != nullptr && dynamic_mapinfo->is_mapped());
     char* cds_base = static_mapinfo->mapped_base();
     char* cds_end =  dynamic_mapped ? dynamic_mapinfo->mapped_end() : static_mapinfo->mapped_end();
@@ -1610,8 +1672,13 @@ void AOTMetaspace::initialize_runtime_shared_and_meta_spaces() {
     if (dynamic_mapped) {
       // turn AutoCreateSharedArchive off if successfully mapped
       AutoCreateSharedArchive = false;
+    } else if (AutoCreateSharedArchive && dynamic_mapinfo != nullptr) {
+      CDSConfig::enable_dumping_dynamic_archive(dynamic_mapinfo->full_path());
     }
   } else {
+    unmap_archive(static_mapinfo);
+    unmap_archive(dynamic_mapinfo);
+    release_reserved_spaces(total_space_rs, archive_space_rs, class_space_rs);
     set_aot_metaspace_range(nullptr, nullptr, nullptr);
     if (CDSConfig::is_dumping_dynamic_archive()) {
       aot_log_warning(aot)("-XX:ArchiveClassesAtExit is unsupported when base CDS archive is not loaded. Run with -Xlog:cds for more info.");
@@ -1726,8 +1793,8 @@ FileMapInfo* AOTMetaspace::open_dynamic_archive() {
 // use_requested_addr:
 //  true  = map at FileMapHeader::_requested_base_address
 //  false = map at an alternative address picked by OS.
-MapArchiveResult AOTMetaspace::map_archives(FileMapInfo* static_mapinfo, FileMapInfo* dynamic_mapinfo,
-                                            bool use_requested_addr) {
+MapArchiveResult AOTMetaspace::map_archives(FileMapInfo* static_mapinfo, FileMapInfo* dynamic_mapinfo, bool use_requested_addr,
+                                            ReservedSpace& total_space_rs, ReservedSpace& archive_space_rs, ReservedSpace& class_space_rs) {
   if (!use_requested_addr) {
     aot_log_info(aot)("Try to map archive(s) at an alternative address");
   }
@@ -1737,7 +1804,6 @@ MapArchiveResult AOTMetaspace::map_archives(FileMapInfo* static_mapinfo, FileMap
     assert(static_mapinfo->mapping_end_offset() == dynamic_mapinfo->mapping_base_offset(), "no gap");
   }
 
-  ReservedSpace total_space_rs, archive_space_rs, class_space_rs;
   MapArchiveResult result = MAP_ARCHIVE_OTHER_FAILURE;
   size_t prot_zone_size = 0;
   char* mapped_base_address = reserve_address_space_for_archives(static_mapinfo,
@@ -1860,6 +1926,7 @@ MapArchiveResult AOTMetaspace::map_archives(FileMapInfo* static_mapinfo, FileMap
         // (bad file, etc) -- just keep the base archive.
         log_warning(cds, dynamic)("Unable to use shared archive. The top archive failed to load: %s",
                                   dynamic_mapinfo->full_path());
+        unmap_archive(dynamic_mapinfo);
         result = MAP_ARCHIVE_SUCCESS;
         // TODO, we can give the unused space for the dynamic archive to class_space_rs, but there's no
         // easy API to do that right now.
@@ -1909,31 +1976,7 @@ MapArchiveResult AOTMetaspace::map_archives(FileMapInfo* static_mapinfo, FileMap
     if (CompressedKlassPointers::base() == klass_range_start) {
       CompressedKlassPointers::establish_protection_zone(klass_range_start, prot_zone_size);
     }
-
-    if (static_mapinfo->can_use_heap_region()) {
-      if (static_mapinfo->object_streaming_mode()) {
-        AOTHeap::initialize_loading_mode(HeapArchiveMode::_streaming);
-      } else {
-        // map_or_load_heap_region() compares the current narrow oop and klass encodings
-        // with the archived ones, so it must be done after all encodings are determined.
-        static_mapinfo->map_or_load_heap_region();
-        AOTHeap::initialize_loading_mode(HeapArchiveMode::_mapping);
-      }
-    } else {
-      FileMapRegion* r = static_mapinfo->region_at(AOTMetaspace::hp);
-      if (r->used() > 0) {
-        AOTMetaspace::report_loading_error("Cannot use CDS heap data.");
-      }
-      if (!CDSConfig::is_dumping_static_archive()) {
-        CDSConfig::stop_using_full_module_graph("No CDS heap data");
-      }
-    }
 #endif // INCLUDE_CLASS_SPACE
-    log_info(aot)("initial full module graph: %s", CDSConfig::is_using_full_module_graph() ? "enabled" : "disabled");
-  } else {
-    unmap_archive(static_mapinfo);
-    unmap_archive(dynamic_mapinfo);
-    release_reserved_spaces(total_space_rs, archive_space_rs, class_space_rs);
   }
 
   return result;
@@ -2186,26 +2229,7 @@ MapArchiveResult AOTMetaspace::map_archive(FileMapInfo* mapinfo, char* mapped_ba
     mapinfo->map_regions(archive_regions, archive_regions_count, mapped_base_address, rs);
 
   if (result != MAP_ARCHIVE_SUCCESS) {
-    unmap_archive(mapinfo);
     return result;
-  }
-
-  if (!mapinfo->validate_class_location()) {
-    unmap_archive(mapinfo);
-    return MAP_ARCHIVE_OTHER_FAILURE;
-  }
-
-  if (mapinfo->is_static()) {
-    // Currently, only static archive uses early serialized data.
-    char* buffer = mapinfo->early_serialized_data();
-    intptr_t* array = (intptr_t*)buffer;
-    ReadClosure rc(&array, (address)mapped_base_address);
-    early_serialize(&rc);
-  }
-
-  if (!mapinfo->validate_aot_class_linking()) {
-    unmap_archive(mapinfo);
-    return MAP_ARCHIVE_OTHER_FAILURE;
   }
 
   mapinfo->set_is_mapped(true);

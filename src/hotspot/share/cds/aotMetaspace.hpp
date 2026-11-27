@@ -92,6 +92,7 @@ private:
   static void exercise_runtime_cds_code(TRAPS) NOT_CDS_RETURN;
   static void dump_static_archive_impl(StaticArchiveBuilder& builder, TRAPS) NOT_CDS_RETURN;
   static void load_classes(TRAPS) NOT_CDS_RETURN;
+  static MapArchiveResult validate_aot_cache(FileMapInfo* mapinfo) NOT_CDS_RETURN_(MAP_ARCHIVE_SUCCESS);
 
 public:
   static Symbol* symbol_rs_base() {
@@ -216,7 +217,7 @@ private:
   static FileMapInfo* open_dynamic_archive();
   // use_requested_addr: If true (default), attempt to map at the address the
   static MapArchiveResult map_archives(FileMapInfo* static_mapinfo, FileMapInfo* dynamic_mapinfo,
-                                       bool use_requested_addr);
+                                       bool use_requested_addr, ReservedSpace& total_space_rs, ReservedSpace& archive_space_rs, ReservedSpace& class_space_rs);
   static char* reserve_address_space_for_archives(FileMapInfo* static_mapinfo,
                                                   FileMapInfo* dynamic_mapinfo,
                                                   bool use_archive_base_addr,
