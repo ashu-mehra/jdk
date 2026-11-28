@@ -90,6 +90,8 @@ VM_Version::RVExtFeatureValue* const VM_Version::_ext_feature_list[] = {
 VM_Version::RVExtFeatureSet VM_Version::_rv_ext_features;
 VM_Version::RVExtFeatureSet VM_Version::_rv_ext_features_disabled_by_aot_cache;
 
+static bool _vm_version_initialized = false;
+
 void VM_Version::RVExtFeatureValue::update_flag() {
   if (_flag == INVALID_JVMFlagsEnum) {
     return;
@@ -171,6 +173,7 @@ void VM_Version::initialize() {
 #ifdef COMPILER2
   c2_initialize();
 #endif // COMPILER2
+  _vm_version_initialized = true;
 }
 
 void VM_Version::common_initialize() {
@@ -632,16 +635,19 @@ int VM_Version::cpu_features_size() {
 }
 
 void VM_Version::store_cpu_features(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   memcpy(buf, RVExtFeatureSet::current(), sizeof(RVExtFeatureSet));
 }
 
 void VM_Version::get_cpu_features_disabled_by_aot_cache(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   memcpy(buf, &_rv_ext_features_disabled_by_aot_cache, sizeof(RVExtFeatureSet));
 }
 
 bool VM_Version::verify_aot_code_cache_features(void* features_buffer) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   RVExtFeatureSet* features_to_test = (RVExtFeatureSet*)features_buffer;
   return RVExtFeatureSet::current()->verify_aot_code_cache_features(features_to_test);
@@ -674,12 +680,14 @@ void VM_Version::insert_features_names(RVExtFeatureSet* features, stringStream& 
 }
 
 void VM_Version::get_cpu_features_name(void* features_buffer, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   RVExtFeatureSet* features = (RVExtFeatureSet*)features_buffer;
   insert_features_names(features, ss);
 }
 
 void VM_Version::get_missing_features_name(void* features_set1, void* features_set2, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_set1, cpu_features_alignment()), "sanity check");
   assert(is_aligned(features_set2, cpu_features_alignment()), "sanity check");
   RVExtFeatureSet* rv_ext_features_set1 = (RVExtFeatureSet*)features_set1;

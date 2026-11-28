@@ -3362,12 +3362,14 @@ void VM_Version::insert_features_names(VM_Version::VM_Features features, stringS
 }
 
 void VM_Version::get_cpu_features_name(void* features_buffer, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   VM_Features* features = (VM_Features*)features_buffer;
   insert_features_names(*features, ss);
 }
 
 void VM_Version::get_missing_features_name(void* features_set1, void* features_set2, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_set1, cpu_features_alignment()), "sanity check");
   assert(is_aligned(features_set2, cpu_features_alignment()), "sanity check");
   VM_Features* vm_features_set1 = (VM_Features*)features_set1;
@@ -3391,12 +3393,14 @@ int VM_Version::cpu_features_size() {
 }
 
 void VM_Version::store_cpu_features(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   VM_Features copy = _features.aot_code_cache_features();
   memcpy(buf, &copy, sizeof(VM_Features));
 }
 
 bool VM_Version::verify_aot_code_cache_features(void* features_buffer) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   VM_Features* features_to_test = (VM_Features*)features_buffer;
   VM_Features rt_features = _features.aot_code_cache_features();
@@ -3404,6 +3408,7 @@ bool VM_Version::verify_aot_code_cache_features(void* features_buffer) {
 }
 
 void VM_Version::get_cpu_features_disabled_by_aot_cache(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   memcpy(buf, &_cpu_features_disabled_by_aot_cache, sizeof(VM_Features));
 }

@@ -62,6 +62,8 @@ bool VM_Version::_ic_ivau_trapped;
 const char* VM_Version::_features_names[] = { CPU_FEATURE_FLAGS(DECLARE_CPU_FEATURE_NAME)};
 #undef DECLARE_CPU_FEATURE_NAME
 
+static bool _vm_version_initialized = false;
+
 static SpinWait get_spin_wait_desc() {
   SpinWait spin_wait(OnSpinWaitInst, OnSpinWaitInstCount, OnSpinWaitDelay);
   if (spin_wait.inst() == SpinWait::SB && !VM_Version::supports_sb()) {
@@ -806,6 +808,7 @@ void VM_Version::initialize() {
 
   _cpu_info_string = ss.as_string(true);
   _features_string = _cpu_info_string + features_offset;
+  _vm_version_initialized = true;
 }
 
 void VM_Version::insert_features_names(uint64_t features, stringStream& ss) {
@@ -823,12 +826,14 @@ void VM_Version::insert_features_names(uint64_t features, stringStream& ss) {
 }
 
 void VM_Version::get_cpu_features_name(void* features_buffer, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   uint64_t features = *(uint64_t*)features_buffer;
   insert_features_names(features, ss);
 }
 
 void VM_Version::get_missing_features_name(void* features_set1, void* features_set2, stringStream& ss) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_set1, cpu_features_alignment()), "sanity check");
   assert(is_aligned(features_set2, cpu_features_alignment()), "sanity check");
   uint64_t vm_features_set1 = *(uint64_t*)features_set1;
@@ -852,16 +857,19 @@ int VM_Version::cpu_features_size() {
 }
 
 void VM_Version::store_cpu_features(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   *(uint64_t*)buf = _features;
 }
 
 void VM_Version::get_cpu_features_disabled_by_aot_cache(void* buf) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(buf, cpu_features_alignment()), "sanity check");
   *(uint64_t*)buf = _cpu_features_disabled_by_aot_cache;
 }
 
 bool VM_Version::verify_aot_code_cache_features(void* features_buffer) {
+  assert(_vm_version_initialized, "should have initialized VM_Version");
   assert(is_aligned(features_buffer, cpu_features_alignment()), "sanity check");
   uint64_t features_to_test = *(uint64_t*)features_buffer;
   return (_features == features_to_test);
